@@ -7,44 +7,41 @@
 program navierstokes
 !
   implicit none   !-->all the variables MUST be declared
-!
+
   integer,parameter :: nx=129,ny=129,nt=10000,ns=3,nf=3,mx=nf*nx,my=nf*ny
   !size of the computational domain (nx x ny) 
   !size of the exchanger (mx x my)
   !number of time step for the simulation
-!
+
   !Declaration of variables
   real(8),dimension(nx,ny) :: uuu,vvv,rho,eee,pre,tmp,rou,rov,wz,tuu,tvv
   real(8),dimension(nx,ny) :: roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9
-  real(8),dimension(nx,ny) :: tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,rot,eps,ftp,gtp,scp
+  real(8),dimension(nx,ny) :: tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp
   real(8),dimension(mx) :: xx
   real(8),dimension(my) :: yy
   real(8),dimension(mx,my) :: tf
   real(8),dimension(2,ns) :: coef
-  integer :: i,j,itemp,k,n,nxm,iread,ni,nj,isave,longueur,imodulo
-  real(8) :: xlx,yly,CFL,dlx,dx,xmu,xkt,um0,vm0,tm0
-  real(8) :: xba,gma,chp,eta,uu0,dlt,um,vm,tm,x,y,dy
+  integer :: i,j,itemp,k,n,ni,nj,imodulo
+  real(8) :: x_length,y_length,CFL,dlx,dx,dyn_viscosity,xkt,um0,vm0,tm0
+  real(8) :: lambda,gamma,chp,eta,dlt,um,vm,tm,x,y,dy
 !**************************************************
-  character(len=80) path_network,nom_network,path_files,nom_file,nom_script,nom_film,nchamp
-  character(len=4) suffix
   character(len=20) nfichier
 !*******************************************
   !Name of the file for visualisation:
-990 format('vort',I4.4)
+  990 format('vort',I4.4)
   imodulo=2500 !snapshots to be saved every imodulo time steps
 
   ! AB2 temporal scheme itemp=1
   ! RK3 temporal scheme itemp=2
   itemp=1
 
-
   ! Subroutine for the initialisation of the variables 
-  call initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,xlx,yly, &
-       xmu,xba,gma,chp,dlx,eta,eps,scp,xkt,uu0)
+  call initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,x_length,y_length, &
+       dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,scp,xkt)
 
   !we need to define the time step
-  dx=xlx/nx !mesh size in x
-  dy=yly/ny !mesh sixe in y
+  dx=x_length/nx !mesh size in x
+  dy=y_length/ny !mesh sixe in y
   CFL=0.25  !CFL number for time step
   dlt=CFL*dlx
   print *,'The time step of the simulation is',dlt
@@ -60,13 +57,13 @@ program navierstokes
      if (itemp.eq.1) then   !TEMPORAL SCHEME AB2
       
         call fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4, &
-             tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,xlx,yly,xmu,xba,eps, &
+             tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps, &
              eta,ftp,scp,xkt)
 
         call adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
              fre,gre,ftp,gtp,scp,nx,ny,dlt)
         
-        call etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gma,chp)
+        call etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gamma,chp)
         
      endif
         
@@ -76,16 +73,17 @@ program navierstokes
         do k=1,ns
 
            call fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4,&
-                tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,xlx,yly,xmu,xba,eps,&
+                tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps,&
                 eta,ftp,scp,xkt)
        
            call rkutta(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
                 fre,gre,ftp,gtp,nx,ny,ns,dlt,coef,scp,k)
 	   
-           call etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gma,chp)
+           call etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gamma,chp)
            
         enddo
      endif
+     
      !loop for the snapshots, to be save every imodulo
      if (mod(n,imodulo).eq.0) then
         !this is design for Gnuplot but feel free to implement your
@@ -103,8 +101,8 @@ program navierstokes
         enddo
 
         !computation of the vorticity
-        call derix(vvv,nx,ny,tvv,xlx)
-        call deriy(uuu,nx,ny,tuu,yly)
+        call derix(vvv,nx,ny,tvv,x_length)
+        call deriy(uuu,nx,ny,tuu,y_length)
         do j=1,ny
         do i=1,nx
            wz(i,j)=tvv(i,j)-tuu(i,j)
@@ -158,16 +156,15 @@ subroutine average(uuu,um,nx,ny)
 !
   real(8),dimension(nx,ny) :: uuu
   real(8) :: um
-  integer :: i,j,nx,ny,nxm
+  integer :: i,j,nx,ny
 
   um=0.
-  nxm=nx
   do j=1,ny
-  do i=1,nxm
+  do i=1,nx
      um = um + uuu(i,j)
   enddo
   enddo
-  um=um/(real(nxm*ny))
+  um=um/(real(nx*ny))
 
   return
 end subroutine average
@@ -175,7 +172,7 @@ end subroutine average
 
 !############################################
 !
-subroutine derix(phi,nx,ny,dfi,xlx)
+subroutine derix(phi,nx,ny,dfi,x_length)
 !
 !First derivative in the x direction
 !############################################
@@ -183,10 +180,10 @@ subroutine derix(phi,nx,ny,dfi,xlx)
   implicit none
 
   real(8),dimension(nx,ny) :: phi,dfi
-  real(8) :: dlx,xlx,udx
+  real(8) :: dlx,x_length,udx
   integer :: i,j,nx,ny
 	
-  dlx=xlx/nx
+  dlx=x_length/nx
   udx=1./(dlx+dlx)
   do j=1,ny
      dfi(1,j)=udx*(phi(2,j)-phi(nx,j))
@@ -202,7 +199,7 @@ end subroutine derix
 
 !############################################
 !
-subroutine deriy(phi,nx,ny,dfi,yly)
+subroutine deriy(phi,nx,ny,dfi,y_length)
 !
 !First derivative in the y direction
 !############################################
@@ -210,10 +207,10 @@ subroutine deriy(phi,nx,ny,dfi,yly)
   implicit none
   
   real(8),dimension(nx,ny) ::  phi,dfi
-  real(8) :: dly,yly,udy
+  real(8) :: dly,y_length,udy
   integer :: i,j,nx,ny
 	
-  dly=yly/ny
+  dly=y_length/ny
   udy=1./(dly+dly)
   do j=2,ny-1
      do i=1,nx
@@ -231,7 +228,7 @@ end subroutine deriy
 
 !############################################
 !
-subroutine derxx(phi,nx,ny,dfi,xlx)
+subroutine derxx(phi,nx,ny,dfi,x_length)
 !
 !Second derivative in y direction
 !############################################
@@ -239,10 +236,10 @@ subroutine derxx(phi,nx,ny,dfi,xlx)
   implicit none
 
   real(8),dimension(nx,ny) ::  phi,dfi
-  real(8) :: dlx,xlx,udx
+  real(8) :: dlx,x_length,udx
   integer :: i,j,nx,ny
 
-  dlx=xlx/nx
+  dlx=x_length/nx
   udx=1./(dlx*dlx)
   do j=1,ny
      dfi(1,j)=udx*(phi(2,j)-(phi(1,j)+phi(1,j))+phi(nx,j))
@@ -259,7 +256,7 @@ end subroutine derxx
 
 !############################################
 !
-subroutine deryy(phi,nx,ny,dfi,yly)
+subroutine deryy(phi,nx,ny,dfi,y_length)
 !
 !Second derivative in the y direction
 !############################################
@@ -267,10 +264,10 @@ subroutine deryy(phi,nx,ny,dfi,yly)
   implicit none
 
   real(8),dimension(nx,ny) ::  phi,dfi
-  real(8) :: dly,yly,udy
+  real(8) :: dly,y_length,udy
   integer :: i,j,nx,ny
 
-  dly=yly/ny
+  dly=y_length/ny
   udy=1./(dly*dly)
   do j=2,ny-1
      do i=1,nx
@@ -289,7 +286,7 @@ end subroutine deryy
 
 !############################################
 !
-subroutine derix4(phi,nx,ny,dfi,xlx)
+subroutine derix4(phi,nx,ny,dfi,x_length)
 !
 !Fourth-order first derivative in the x direction
 !############################################
@@ -297,7 +294,7 @@ subroutine derix4(phi,nx,ny,dfi,xlx)
   implicit none
 
   real(8),dimension(nx,ny) :: phi,dfi
-  real(8) :: dlx,xlx,udx
+  real(8) :: dlx,x_length,udx
   integer :: i,j,nx,ny
 	
 
@@ -308,7 +305,7 @@ end subroutine derix4
 
 !############################################
 !
-subroutine deriy4(phi,nx,ny,dfi,yly)
+subroutine deriy4(phi,nx,ny,dfi,y_length)
 !
 !Fourth-order first derivative in the y direction
 !############################################
@@ -316,7 +313,7 @@ subroutine deriy4(phi,nx,ny,dfi,yly)
   implicit none
   
   real(8),dimension(nx,ny) ::  phi,dfi
-  real(8) :: dly,yly,udy
+  real(8) :: dly,y_length,udy
   integer :: i,j,nx,ny
 	
 
@@ -327,7 +324,7 @@ end subroutine deriy4
 
 !############################################
 !
-subroutine derxx4(phi,nx,ny,dfi,xlx)
+subroutine derxx4(phi,nx,ny,dfi,x_length)
 !
 !Fourth-order second derivative in y direction
 !############################################
@@ -335,7 +332,7 @@ subroutine derxx4(phi,nx,ny,dfi,xlx)
   implicit none
 
   real(8),dimension(nx,ny) ::  phi,dfi
-  real(8) :: dlx,xlx,udx
+  real(8) :: dlx,x_length,udx
   integer :: i,j,nx,ny
 
 
@@ -346,7 +343,7 @@ end subroutine derxx4
 
 !############################################
 !
-subroutine deryy4(phi,nx,ny,dfi,yly)
+subroutine deryy4(phi,nx,ny,dfi,y_length)
 !
 !Fourth-order second derivative in the y direction
 !############################################
@@ -354,7 +351,7 @@ subroutine deryy4(phi,nx,ny,dfi,yly)
   implicit none
 
   real(8),dimension(nx,ny) ::  phi,dfi
-  real(8) :: dly,yly,udy
+  real(8) :: dly,y_length,udy
   integer :: i,j,nx,ny
 
 
@@ -367,7 +364,7 @@ end subroutine deryy4
 !#######################################################################
 !
 subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
-     tb4,tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,xlx,yly,xmu,xba,&
+     tb4,tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,&
      eps,eta,ftp,scp,xkt)
 !
 !#######################################################################
@@ -376,11 +373,11 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
 
   real(8),dimension(nx,ny) :: uuu,vvv,rho,pre,tmp,rou,rov,roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7
   real(8),dimension(nx,ny) :: tb8,tb9,tba,tbb,fro,fru,frv,fre,eps,ftp,scp
-  real(8) :: utt,qtt,xmu,eta,dmu,xlx,yly,xba,xkt
+  real(8) :: utt,qtt,dyn_viscosity,eta,dmu,x_length,y_length,lambda,xkt
   integer :: i,j,nx,ny
 
-  call derix(rou,nx,ny,tb1,xlx)
-  call deriy(rov,nx,ny,tb2,yly)
+  call derix(rou,nx,ny,tb1,x_length)
+  call deriy(rov,nx,ny,tb2,y_length)
   do j=1,ny
      do i=1,nx
         fro(i,j)=-tb1(i,j)-tb2(i,j)
@@ -394,18 +391,18 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
      enddo
   enddo
 	
-  call derix(pre,nx,ny,tb3,xlx)
-  call derix(tb1,nx,ny,tb4,xlx)
-  call deriy(tb2,nx,ny,tb5,yly)
-  call derxx(uuu,nx,ny,tb6,xlx)
-  call deryy(uuu,nx,ny,tb7,yly)
-  call derix(vvv,nx,ny,tb8,xlx)
-  call deriy(tb8,nx,ny,tb9,yly)
+  call derix(pre,nx,ny,tb3,x_length)
+  call derix(tb1,nx,ny,tb4,x_length)
+  call deriy(tb2,nx,ny,tb5,y_length)
+  call derxx(uuu,nx,ny,tb6,x_length)
+  call deryy(uuu,nx,ny,tb7,y_length)
+  call derix(vvv,nx,ny,tb8,x_length)
+  call deriy(tb8,nx,ny,tb9,y_length)
   utt=1./3
   qtt=4./3
   do j=1,ny
      do i=1,nx
-        tba(i,j)=xmu*(qtt*tb6(i,j)+tb7(i,j)+utt*tb9(i,j))
+        tba(i,j)=dyn_viscosity*(qtt*tb6(i,j)+tb7(i,j)+utt*tb9(i,j))
         fru(i,j)=-tb3(i,j)-tb4(i,j)-tb5(i,j)+tba(i,j)&
              -(eps(i,j)/eta)*uuu(i,j)
      enddo
@@ -418,16 +415,16 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
      enddo
   enddo
 	
-  call deriy(pre,nx,ny,tb3,yly)
-  call derix(tb1,nx,ny,tb4,xlx)
-  call deriy(tb2,nx,ny,tb5,yly)
-  call derxx(vvv,nx,ny,tb6,xlx)
-  call deryy(vvv,nx,ny,tb7,yly)
-  call derix(uuu,nx,ny,tb8,xlx)
-  call deriy(tb8,nx,ny,tb9,yly)
+  call deriy(pre,nx,ny,tb3,y_length)
+  call derix(tb1,nx,ny,tb4,x_length)
+  call deriy(tb2,nx,ny,tb5,y_length)
+  call derxx(vvv,nx,ny,tb6,x_length)
+  call deryy(vvv,nx,ny,tb7,y_length)
+  call derix(uuu,nx,ny,tb8,x_length)
+  call deriy(tb8,nx,ny,tb9,y_length)
   do j=1,ny
      do i=1,nx
-        tbb(i,j)=xmu*(tb6(i,j)+qtt*tb7(i,j)+utt*tb9(i,j))
+        tbb(i,j)=dyn_viscosity*(tb6(i,j)+qtt*tb7(i,j)+utt*tb9(i,j))
         frv(i,j)=-tb3(i,j)-tb4(i,j)-tb5(i,j)+tbb(i,j)&
              -(eps(i,j)/eta)*vvv(i,j)
      enddo
@@ -435,10 +432,10 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
 !
 !Equation for the tempature
 !
-  call derix(scp,nx,ny,tb1,xlx)
-  call deriy(scp,nx,ny,tb2,yly)
-  call derxx(scp,nx,ny,tb3,xlx)
-  call deryy(scp,nx,ny,tb4,yly)
+  call derix(scp,nx,ny,tb1,x_length)
+  call deriy(scp,nx,ny,tb2,y_length)
+  call derxx(scp,nx,ny,tb3,x_length)
+  call deryy(scp,nx,ny,tb4,y_length)
 
   do j=1,ny
      do i=1,nx
@@ -448,17 +445,17 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
      enddo
   enddo
   
-  call derix(uuu,nx,ny,tb1,xlx)
-  call deriy(vvv,nx,ny,tb2,yly)
-  call deriy(uuu,nx,ny,tb3,yly)
-  call derix(vvv,nx,ny,tb4,xlx)
-  dmu=2./3*xmu
+  call derix(uuu,nx,ny,tb1,x_length)
+  call deriy(vvv,nx,ny,tb2,y_length)
+  call deriy(uuu,nx,ny,tb3,y_length)
+  call derix(vvv,nx,ny,tb4,x_length)
+  dmu=2./3*dyn_viscosity
   do j=1,ny
      do i=1,nx
-        fre(i,j)=xmu*(uuu(i,j)*tba(i,j)+vvv(i,j)*tbb(i,j))&
-             +(xmu+xmu)*(tb1(i,j)*tb1(i,j)+tb2(i,j)*tb2(i,j))&
+        fre(i,j)=dyn_viscosity*(uuu(i,j)*tba(i,j)+vvv(i,j)*tbb(i,j))&
+             +(dyn_viscosity+dyn_viscosity)*(tb1(i,j)*tb1(i,j)+tb2(i,j)*tb2(i,j))&
              -dmu*(tb1(i,j)+tb2(i,j))*(tb1(i,j)+tb2(i,j))&
-             +xmu*(tb3(i,j)+tb4(i,j))*(tb3(i,j)+tb4(i,j))
+             +dyn_viscosity*(tb3(i,j)+tb4(i,j))*(tb3(i,j)+tb4(i,j))
      enddo
   enddo
   
@@ -471,16 +468,16 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
      enddo
   enddo
 
-  call derix(tb1,nx,ny,tb5,xlx)
-  call derix(tb2,nx,ny,tb6,xlx)
-  call deriy(tb3,nx,ny,tb7,yly)
-  call deriy(tb4,nx,ny,tb8,yly)
-  call derxx(tmp,nx,ny,tb9,xlx)
-  call deryy(tmp,nx,ny,tba,yly)
+  call derix(tb1,nx,ny,tb5,x_length)
+  call derix(tb2,nx,ny,tb6,x_length)
+  call deriy(tb3,nx,ny,tb7,y_length)
+  call deriy(tb4,nx,ny,tb8,y_length)
+  call derxx(tmp,nx,ny,tb9,x_length)
+  call deryy(tmp,nx,ny,tba,y_length)
    
   do j=1,ny
      do i=1,nx
-        fre(i,j)=fre(i,j)-tb5(i,j)-tb6(i,j)-tb7(i,j)-tb8(i,j)+xba*(tb9(i,j)+tba(i,j))
+        fre(i,j)=fre(i,j)-tb5(i,j)-tb6(i,j)-tb7(i,j)-tb8(i,j)+lambda*(tb9(i,j)+tba(i,j))
      enddo
   enddo
 	
@@ -559,38 +556,38 @@ end subroutine adams
 !###########################################################
 !
 subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
-     xlx,yly,xmu,xba,gma,chp,dlx,eta,eps,scp,xkt,uu0)
+     x_length,y_length,dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,scp,xkt)
 !
 !###########################################################
 
   implicit none
 
   real(8),dimension(nx,ny) :: uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,eps,scp
-  real(8) :: xlx,yly,xmu,xba,gma,chp,roi,cci,d,tpi,chv,uu0
+  real(8) :: x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylinder_d,temp_inf,chv,uu0
   real(8) :: epsi,pi,dlx,dly,ct3,ct4,ct5,ct6,y,x,eta,radius
   real(8) :: xkt
   integer :: nx,ny,i,j,ic,jc,imin,imax,jmin,jmax
 
-  call param(xlx,yly,xmu,xba,gma,chp,roi,cci,d,tpi,chv,uu0)
+  call param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylinder_d,temp_inf,chv,uu0)
 
-  epsi=0.1
-  dlx=xlx/nx
-  dly=yly/ny
-  ct3=log(2.)
-  ct4=yly/2.
-  ct5=xlx/2.
-  ct6=(gma-1.)/gma
-  y=-ct4
-  x=0.
-  eta=0.1
-  eta=eta/2.
-  radius=d/2.
-  xkt=xba/(chp*roi)
-  pi=acos(-1.)
+  epsi = 0.1
+  dlx = x_length / nx
+  dly = y_length / ny
+  ct3 = log(2.)
+  ct4 = y_length / 2.
+  ct5 = x_length / 2.
+  ct6 = (gamma-1.) / gamma
+  y = -ct4
+  x = 0.
+  eta = 0.1
+  eta = eta / 2.
+  radius = cylinder_d / 2.
+  xkt = lambda / (chp * rho_inf)
+  pi = acos(-1.)
 
 !######for the square cylinder########################################
-      ic=nint((xlx/2./dlx)+1) !X coordinate center of square
-      jc=nint((yly/2./dly)+1) !Y coordinate center of square
+      ic=nint((x_length/2./dlx)+1) !X coordinate center of square
+      jc=nint((y_length/2./dly)+1) !Y coordinate center of square
 !      imax=XXX
 !      imin=XXX
 !      jmax=XXX
@@ -602,7 +599,7 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
 !##########CYLINDER DEFINITION#########################################
   do j=1,ny
      do i=1,nx
-        if (((i*dlx-xlx/2.)**2+(j*dly-yly/2.)**2).lt.radius**2) then
+        if (((i*dlx-x_length/2.)**2+(j*dly-y_length/2.)**2).lt.radius**2) then
            eps(i,j)=1.
         else
            eps(i,j)=0.
@@ -613,12 +610,12 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
   do j=1,ny
      do i=1,nx
         uuu(i,j)=uu0
-        vvv(i,j)=0.01*(sin(4.*pi*i*dlx/xlx)&
-             +sin(7.*pi*i*dlx/xlx))*&
-             exp(-(j*dly-yly/2.)**2)
-        tmp(i,j)=tpi
-        eee(i,j)=chv*tmp(i,j)+0.5*(uuu(i,j)*uuu(i,j)+vvv(i,j)*vvv(i,j))
-        rho(i,j)=roi
+        vvv(i,j)=0.01*(sin(4.*pi*i*dlx/x_length)&
+             +sin(7.*pi*i*dlx/x_length))*&
+             exp(-(j*dly-y_length/2.)**2)
+        tmp(i,j)=temp_inf
+        eee(i,j) = chv*tmp(i,j) + 0.5 * (uuu(i,j)*uuu(i,j) + vvv(i,j)*vvv(i,j))
+        rho(i,j)=rho_inf
         pre(i,j)=rho(i,j)*ct6*chp*tmp(i,j)
         rou(i,j)=rho(i,j)*uuu(i,j)
         rov(i,j)=rho(i,j)*vvv(i,j)
@@ -635,49 +632,43 @@ end subroutine initl
 
 !################################################################
 !
-subroutine param(xlx,yly,xmu,xba,gma,chp,roi,cci,d,tpi,chv,uu0)
-!
-!################################################################
+subroutine param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylinder_d,temp_inf,chv,uu0)
 
   implicit none
 
-  real(8) :: ren,pdl,roi,cci,d,chp,gma,chv,xlx,yly,uu0,xmu,xba,tpi,mach
+  real(8) :: reynolds,prandtl,rho_inf,c_inf,cylinder_d,chp,gamma,chv,x_length,y_length,uu0,dyn_viscosity,lambda,temp_inf,mach
 
-  ren=200.
-  mach=0.2
-  pdl=0.7
-  roi=1.
-  cci=1.
-  d=1.
-  chp=1.
-  gma=1.4
+  reynolds = 200.
+  mach = 0.2
+  prandtl = 0.7
+  rho_inf = 1.
+  c_inf = 1. ! speed of sound at inf
+  cylinder_d = 1.
+  chp = 1. ! heat capacity at const pressure
+  gamma = 1.4
 	
-  chv=chp/gma
-  xlx=4.*d
-  yly=4.*d
-  uu0=mach*cci
-  xmu=roi*uu0*d/ren
-  xba=xmu*chp/pdl
-  tpi=cci**2/(chp*(gma-1))
+  chv = chp / gamma ! heat capacity at const volume
+  ! Dimensions of computational domain
+  x_length = 4. * cylinder_d
+  y_length = 4. * cylinder_d
+  uu0 = mach * c_inf ! U infinity
+  dyn_viscosity = rho_inf * uu0 * cylinder_d / reynolds
+  lambda = dyn_viscosity * chp / prandtl ! thermal conductivity
+  temp_inf = c_inf**2 / (chp* (gamma-1))
 	
   return
 end subroutine param
-!################################################################
 
-!################################################################
-!
-subroutine etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gma,chp)
-!
-!################################################################  
+subroutine etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gamma,chp)
 
   implicit none
 
   real(8),dimension(nx,ny) ::  uuu,vvv,rho,pre,tmp,rou,rov,roe
-  real(8) :: ct7,gma,ct8,chp
+  real(8) :: ct7,gamma,ct8,chp
   integer :: i,j,nx,ny
 	
-  ct7=gma-1.
-  ct8=gma/(gma-1.)
+  ct7=gamma-1.
+  ct8=gamma/(gamma-1.)
 
   do j=1,ny
      do i=1,nx
