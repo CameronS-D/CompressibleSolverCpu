@@ -14,7 +14,7 @@ program navierstokes
   !number of time step for the simulation
 
   !Declaration of variables
-  real(8),dimension(nx,ny) :: uuu,vvv,rho,eee,pre,tmp,rou,rov,wz,tuu,tvv
+  real(8),dimension(nx,ny) :: uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv
   real(8),dimension(nx,ny) :: roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9
   real(8),dimension(nx,ny) :: tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp
   real(8),dimension(mx) :: xx
@@ -36,7 +36,7 @@ program navierstokes
   itemp=1
 
   ! Subroutine for the initialisation of the variables 
-  call initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,x_length,y_length, &
+  call initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,x_length,y_length, &
        dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,scp,xkt)
 
   !we need to define the time step
@@ -56,14 +56,14 @@ program navierstokes
   do n=1,nt
      if (itemp.eq.1) then   !TEMPORAL SCHEME AB2
       
-        call fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4, &
+        call fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4, &
              tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps, &
              eta,ftp,scp,xkt)
 
         call adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
              fre,gre,ftp,gtp,scp,nx,ny,dlt)
         
-        call etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gamma,chp)
+        call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
         
      endif
         
@@ -72,14 +72,14 @@ program navierstokes
         !loop for sub-time steps
         do k=1,ns
 
-           call fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4,&
+           call fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4,&
                 tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps,&
                 eta,ftp,scp,xkt)
        
            call rkutta(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
                 fre,gre,ftp,gtp,nx,ny,ns,dlt,coef,scp,k)
 	   
-           call etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gamma,chp)
+           call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
            
         enddo
      endif
@@ -363,7 +363,7 @@ end subroutine deryy4
 
 !#######################################################################
 !
-subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
+subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
      tb4,tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,&
      eps,eta,ftp,scp,xkt)
 !
@@ -371,7 +371,7 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
 
   implicit none
 
-  real(8),dimension(nx,ny) :: uuu,vvv,rho,pre,tmp,rou,rov,roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7
+  real(8),dimension(nx,ny) :: uuu,vvv,rho,pressure,tmp,rou,rov,roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7
   real(8),dimension(nx,ny) :: tb8,tb9,tba,tbb,fro,fru,frv,fre,eps,ftp,scp
   real(8) :: utt,qtt,dyn_viscosity,eta,dmu,x_length,y_length,lambda,xkt
   integer :: i,j,nx,ny
@@ -391,7 +391,7 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
      enddo
   enddo
 	
-  call derix(pre,nx,ny,tb3,x_length)
+  call derix(pressure,nx,ny,tb3,x_length)
   call derix(tb1,nx,ny,tb4,x_length)
   call deriy(tb2,nx,ny,tb5,y_length)
   call derxx(uuu,nx,ny,tb6,x_length)
@@ -415,7 +415,7 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
      enddo
   enddo
 	
-  call deriy(pre,nx,ny,tb3,y_length)
+  call deriy(pressure,nx,ny,tb3,y_length)
   call derix(tb1,nx,ny,tb4,x_length)
   call deriy(tb2,nx,ny,tb5,y_length)
   call derxx(vvv,nx,ny,tb6,x_length)
@@ -462,9 +462,9 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   do j=1,ny
      do i=1,nx
         tb1(i,j)=roe(i,j)*uuu(i,j)
-        tb2(i,j)=pre(i,j)*uuu(i,j) 
+        tb2(i,j)=pressure(i,j)*uuu(i,j) 
         tb3(i,j)=roe(i,j)*vvv(i,j)
-        tb4(i,j)=pre(i,j)*vvv(i,j)
+        tb4(i,j)=pressure(i,j)*vvv(i,j)
      enddo
   enddo
 
@@ -555,30 +555,23 @@ end subroutine adams
 
 !###########################################################
 !
-subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
+subroutine initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,&
      x_length,y_length,dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,scp,xkt)
 !
 !###########################################################
 
   implicit none
 
-  real(8),dimension(nx,ny) :: uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,eps,scp
+  real(8),dimension(nx,ny) :: uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,eps,scp
   real(8) :: x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylinder_d,temp_inf,chv,uu0
-  real(8) :: epsi,pi,dlx,dly,ct3,ct4,ct5,ct6,y,x,eta,radius
+  real(8) :: pi,dlx,dly,eta,radius
   real(8) :: xkt
   integer :: nx,ny,i,j,ic,jc,imin,imax,jmin,jmax
 
   call param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylinder_d,temp_inf,chv,uu0)
 
-  epsi = 0.1
   dlx = x_length / nx
   dly = y_length / ny
-  ct3 = log(2.)
-  ct4 = y_length / 2.
-  ct5 = x_length / 2.
-  ct6 = (gamma-1.) / gamma
-  y = -ct4
-  x = 0.
   eta = 0.1
   eta = eta / 2.
   radius = cylinder_d / 2.
@@ -586,20 +579,18 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
   pi = acos(-1.)
 
 !######for the square cylinder########################################
-      ic=nint((x_length/2./dlx)+1) !X coordinate center of square
-      jc=nint((y_length/2./dly)+1) !Y coordinate center of square
-!      imax=XXX
-!      imin=XXX
-!      jmax=XXX
-!      jmin=XXX
+  ic = nint((x_length / 2. / dlx) + 1) !X coordinate center of square
+  jc = nint((y_length/ 2. / dly) + 1) !Y coordinate center of square
+!   imax=XXX
+!   imin=XXX
+!   jmax=XXX
+!   jmin=XXX
 !######################################################################
-
-
 
 !##########CYLINDER DEFINITION#########################################
   do j=1,ny
      do i=1,nx
-        if (((i*dlx-x_length/2.)**2+(j*dly-y_length/2.)**2).lt.radius**2) then
+        if (((i*dlx - x_length/2.)**2 + (j*dly - y_length/2.)**2) .lt. radius**2) then
            eps(i,j)=1.
         else
            eps(i,j)=0.
@@ -609,29 +600,25 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
 !######################################################################
   do j=1,ny
      do i=1,nx
-        uuu(i,j)=uu0
-        vvv(i,j)=0.01*(sin(4.*pi*i*dlx/x_length)&
-             +sin(7.*pi*i*dlx/x_length))*&
-             exp(-(j*dly-y_length/2.)**2)
-        tmp(i,j)=temp_inf
-        eee(i,j) = chv*tmp(i,j) + 0.5 * (uuu(i,j)*uuu(i,j) + vvv(i,j)*vvv(i,j))
-        rho(i,j)=rho_inf
-        pre(i,j)=rho(i,j)*ct6*chp*tmp(i,j)
-        rou(i,j)=rho(i,j)*uuu(i,j)
-        rov(i,j)=rho(i,j)*vvv(i,j)
-        roe(i,j)=rho(i,j)*eee(i,j)
-        scp(i,j)=1.
-        x=x+dlx
+        uuu(i,j) = uu0
+        ! Add small velocity perturbation
+        vvv(i,j) = 0.01 * (sin(4. * pi * i * dlx / x_length) &
+                   + sin(7. * pi * i * dlx / x_length)) &
+                   * exp(-(j * dly - y_length / 2.) **2)
+        tmp(i,j) = temp_inf
+        eee(i,j) = chv * tmp(i,j) + 0.5 * (uuu(i,j)*uuu(i,j) + vvv(i,j)*vvv(i,j))
+        rho(i,j) = rho_inf
+        pressure(i,j) = rho(i,j) * (gamma-1.) / gamma * chp * tmp(i,j)
+        rou(i,j) = rho(i,j) * uuu(i,j)
+        rov(i,j) = rho(i,j) * vvv(i,j)
+        roe(i,j) = rho(i,j) * eee(i,j)
+        scp(i,j) = 1.
      enddo
-     y=y+dly
   enddo
 
   return
 end subroutine initl
-!###########################################################
 
-!################################################################
-!
 subroutine param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylinder_d,temp_inf,chv,uu0)
 
   implicit none
@@ -659,11 +646,11 @@ subroutine param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylind
   return
 end subroutine param
 
-subroutine etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gamma,chp)
+subroutine etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
 
   implicit none
 
-  real(8),dimension(nx,ny) ::  uuu,vvv,rho,pre,tmp,rou,rov,roe
+  real(8),dimension(nx,ny) ::  uuu,vvv,rho,pressure,tmp,rou,rov,roe
   real(8) :: ct7,gamma,ct8,chp
   integer :: i,j,nx,ny
 	
@@ -674,12 +661,11 @@ subroutine etatt(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,gamma,chp)
      do i=1,nx
         uuu(i,j)=rou(i,j)/rho(i,j)
         vvv(i,j)=rov(i,j)/rho(i,j)
-        pre(i,j)=ct7*(roe(i,j)-0.5*(rou(i,j)*uuu(i,j)+&
+        pressure(i,j)=ct7*(roe(i,j)-0.5*(rou(i,j)*uuu(i,j)+&
              rov(i,j)*vvv(i,j)))
-        tmp(i,j)=ct8*pre(i,j)/(rho(i,j)*chp)
+        tmp(i,j)=ct8*pressure(i,j)/(rho(i,j)*chp)
      enddo
   enddo
 	
   return
 end subroutine etatt
-!################################################################

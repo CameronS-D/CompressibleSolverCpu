@@ -1,0 +1,2 @@
+line 611 (initl subroutine): delete eee array? Only used to initialise roe array
+initl subroutine: move cylinder definition loop into main initialisation loop
