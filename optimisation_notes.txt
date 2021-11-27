@@ -1,2 +1,15 @@
 line 611 (initl subroutine): delete eee array? Only used to initialise roe array
 initl subroutine: move cylinder definition loop into main initialisation loop
+average subroutine: use in-built function to sum array?
+remove some loops when calculating vorticity 
+deriy subroutine: combine do loops using if statement same for deriyy
+
+
+Note: fortran arrays are stored in column-major order (A(row_num, col_num))
+    e.g. A(3, 2) stored as: A(1,1) A(2,1) A(3,1) A(1,2) A(2,2) A(3,2)
+    fastest access:
+    do i=1,ncols
+        do j=1,nrows
+            A(j, i) = 1.
+        enddo
+    enddo

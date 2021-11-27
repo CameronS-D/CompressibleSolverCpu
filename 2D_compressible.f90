@@ -22,8 +22,8 @@ program navierstokes
   real(8),dimension(mx,my) :: tf
   real(8),dimension(2,ns) :: coef
   integer :: i,j,itemp,k,n,ni,nj,imodulo
-  real(8) :: x_length,y_length,CFL,dlx,dx,dyn_viscosity,xkt,um0,vm0,tm0
-  real(8) :: lambda,gamma,chp,eta,dlt,um,vm,tm,x,y,dy
+  real(8) :: x_length,y_length,CFL,dlx,dx,dyn_viscosity,xkt
+  real(8) :: lambda,gamma,chp,eta,dlt,u_mean,v_mean,t_mean,x,y,dy
 !**************************************************
   character(len=20) nfichier
 !*******************************************
@@ -40,169 +40,163 @@ program navierstokes
        dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,scp,xkt)
 
   !we need to define the time step
-  dx=x_length/nx !mesh size in x
-  dy=y_length/ny !mesh sixe in y
-  CFL=0.25  !CFL number for time step
-  dlt=CFL*dlx
-  print *,'The time step of the simulation is',dlt
+  dx = x_length / nx !mesh size in x
+  dy = y_length / ny !mesh sixe in y
+  CFL = 0.25  !CFL number for time step
+  dlt = CFL * dlx
+  print *,'The time step of the simulation is', dlt
   
   !Computation of the average velocity and temperature at t=0
-  call average(uuu,um0,nx,ny)
-  call average(vvv,vm0,nx,ny)
-  call average(scp,tm0,nx,ny)
-  write(*,*) 'Average values at t=0', um0,vm0,tm0
+  call average(uuu, u_mean, nx, ny)
+  call average(vvv, v_mean, nx, ny)
+  call average(scp, t_mean, nx, ny)
+  write(*,*) 'Average values at t=0', u_mean, v_mean, t_mean
 
 !BEGINNING OF TIME LOOP
   do n=1,nt
-     if (itemp.eq.1) then   !TEMPORAL SCHEME AB2
+   if (itemp.eq.1) then   !TEMPORAL SCHEME AB2
       
-        call fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4, &
-             tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps, &
-             eta,ftp,scp,xkt)
+      call fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4, &
+            tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps, &
+            eta,ftp,scp,xkt)
 
-        call adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
-             fre,gre,ftp,gtp,scp,nx,ny,dlt)
+      call adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
+            fre,gre,ftp,gtp,scp,nx,ny,dlt)
+      
+      call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
         
-        call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
+   endif
         
-     endif
-        
-     if (itemp.eq.2) then !TEMPORAL SCHEME RK3
-        
-        !loop for sub-time steps
-        do k=1,ns
+   if (itemp.eq.2) then !TEMPORAL SCHEME RK3
 
-           call fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4,&
-                tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps,&
-                eta,ftp,scp,xkt)
-       
-           call rkutta(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
-                fre,gre,ftp,gtp,nx,ny,ns,dlt,coef,scp,k)
-	   
-           call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
-           
-        enddo
-     endif
+      !loop for sub-time steps
+      do k=1,ns
+         call fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4,&
+               tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps,&
+               eta,ftp,scp,xkt)
+      
+         call rkutta(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
+               fre,gre,ftp,gtp,nx,ny,ns,dlt,coef,scp,k)
+   
+         call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
+         
+      enddo
+   endif
      
-     !loop for the snapshots, to be save every imodulo
-     if (mod(n,imodulo).eq.0) then
-        !this is design for Gnuplot but feel free to implement your
-        !own code if you want to use Matlab or Paraview
-        write(nfichier, 990) n/imodulo
-        x=0.
-        do i=1,mx
-           xx(i)=x
-           x=x+dx 
-        enddo
-        y=0.
-        do j=1,my
-           yy(j)=y
-           y=y+dy
-        enddo
+   !loop for the snapshots, to be save every imodulo
+   if (mod(n,imodulo) .eq. 0) then
+      !this is design for Gnuplot but feel free to implement your
+      !own code if you want to use Matlab or Paraview
+      write(nfichier, 990) n/imodulo
+      x=0.
+      do i=1,mx
+         xx(i)=x
+         x=x+dx 
+      enddo
 
-        !computation of the vorticity
-        call derix(vvv,nx,ny,tvv,x_length)
-        call deriy(uuu,nx,ny,tuu,y_length)
-        do j=1,ny
-        do i=1,nx
-           wz(i,j)=tvv(i,j)-tuu(i,j)
-        enddo
-        enddo
-        
-        !using periodicity we copy the vorticity for the heat exchanger
-        do ni=1,nf
-        do nj=1,nf
-           do j=1,ny
-           do i=1,nx
-              tf(i+(ni-1)*nx,j+(nj-1)*ny)=wz(i,j)
-           enddo
-           enddo
-        enddo
-        enddo
-        !this file will be used by gnuplot for visualisations
-        open(21,file=nfichier,form='formatted',status='unknown')
-        do j=1,my
-        do i=1,mx
-           write(21,*)  xx(i),yy(j),tf(i,j)
-        enddo
-        write(21,*)
-        enddo
-        close (21)  
-     endif
+      y=0.
+      do j=1,my
+         yy(j)=y
+         y=y+dy
+      enddo
 
-     !Computation of average values
-     call average(uuu,um,nx,ny)
-     call average(vvv,vm,nx,ny)
-     call average(scp,tm,nx,ny)
+      !computation of the vorticity
+      call derix(vvv,nx,ny,tvv,x_length)
+      call deriy(uuu,nx,ny,tuu,y_length)
 
-     !we write the average values for velocity and temperature
-     write(*,*) n,um,vm,tm
-!	   
+      do j=1,ny
+         do i=1,nx
+            wz(i,j)=tvv(i,j)-tuu(i,j)
+         enddo
+      enddo
+      
+      !using periodicity we copy the vorticity for the heat exchanger
+      do ni=1,nf
+         do nj=1,nf
+            do j=1,ny
+               do i=1,nx
+                  tf(i+(ni-1)*nx, j+(nj-1)*ny) = wz(i,j)
+               enddo
+            enddo
+         enddo
+      enddo
+
+      !this file will be used by gnuplot for visualisations
+      open(21,file=nfichier,form='formatted',status='unknown')
+      do j=1,my
+         do i=1,mx
+            write(21,*) xx(i), yy(j), tf(i,j)
+         enddo
+         write(21,*)
+      enddo
+      close(21)  
+   endif
+
+   !Computation and print of average values
+   call average(uuu,u_mean,nx,ny)
+   call average(vvv,v_mean,nx,ny)
+   call average(scp,t_mean,nx,ny)
+   write(*,*) n, u_mean, v_mean, t_mean
+
   enddo
   !END OF THE TIME LOOP
-!
 end program navierstokes
 !
 !END OF THE MAIN PROGRAMME
 !
 !############################################
 !
-subroutine average(uuu,um,nx,ny)
+subroutine average(array, mean, nx, ny)
 !
 !computation of the mean value of a 2D field
 !############################################
 !
   implicit none
 !
-  real(8),dimension(nx,ny) :: uuu
-  real(8) :: um
+  real(8),dimension(nx,ny) :: array
+  real(8) :: mean
   integer :: i,j,nx,ny
 
-  um=0.
+  mean=0.
   do j=1,ny
-  do i=1,nx
-     um = um + uuu(i,j)
+   do i=1,nx
+      mean = mean + array(i,j)
+   enddo
   enddo
-  enddo
-  um=um/(real(nx*ny))
+
+  mean=mean/(real(nx*ny))
 
   return
 end subroutine average
-!############################################
 
-!############################################
-!
-subroutine derix(phi,nx,ny,dfi,x_length)
+subroutine derix(phi,nx,ny,phi_deriv,x_length)
 !
 !First derivative in the x direction
-!############################################
-  
+!
   implicit none
 
-  real(8),dimension(nx,ny) :: phi,dfi
+  real(8),dimension(nx,ny) :: phi,phi_deriv
   real(8) :: dlx,x_length,udx
   integer :: i,j,nx,ny
 	
-  dlx=x_length/nx
-  udx=1./(dlx+dlx)
+  dlx = x_length / nx
+  udx = 1. / (2 * dlx)
+
   do j=1,ny
-     dfi(1,j)=udx*(phi(2,j)-phi(nx,j))
-     do i=2,nx-1
-        dfi(i,j)=udx*(phi(i+1,j)-phi(i-1,j))
-     enddo
-     dfi(nx,j)=udx*(phi(1,j)-phi(nx-1,j))
+   phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
+      do i=2,nx-1
+         phi_deriv(i,j) = udx * (phi(i+1,j) - phi(i-1,j))
+      enddo
+      phi_deriv(nx,j) = udx * (phi(1,j) - phi(nx-1,j))
   enddo
 	
   return
 end subroutine derix
-!############################################
 
-!############################################
-!
 subroutine deriy(phi,nx,ny,dfi,y_length)
 !
 !First derivative in the y direction
-!############################################
+!
 
   implicit none
   
@@ -210,28 +204,27 @@ subroutine deriy(phi,nx,ny,dfi,y_length)
   real(8) :: dly,y_length,udy
   integer :: i,j,nx,ny
 	
-  dly=y_length/ny
-  udy=1./(dly+dly)
+  dly = y_length / ny
+  udy = 1. / (2 * dly)
+
   do j=2,ny-1
-     do i=1,nx
-        dfi(i,j)=udy*(phi(i,j+1)-phi(i,j-1))
-     enddo
+      do i=1,nx
+         dfi(i,j) = udy * (phi(i,j+1) - phi(i,j-1))
+      enddo
   enddo
+
   do i=1,nx
-     dfi(i,1)=udy*(phi(i,2)-phi(i,ny))
-     dfi(i,ny)=udy*(phi(i,1)-phi(i,ny-1))
+      dfi(i,1) = udy * (phi(i,2) - phi(i,ny))
+      dfi(i,ny) = udy * (phi(i,1) - phi(i,ny-1))
   enddo
 	
   return
 end subroutine deriy
-!############################################
 
-!############################################
-!
 subroutine derxx(phi,nx,ny,dfi,x_length)
 !
-!Second derivative in y direction
-!############################################
+!Second derivative in x direction
+!
 
   implicit none
 
@@ -239,27 +232,24 @@ subroutine derxx(phi,nx,ny,dfi,x_length)
   real(8) :: dlx,x_length,udx
   integer :: i,j,nx,ny
 
-  dlx=x_length/nx
-  udx=1./(dlx*dlx)
+  dlx = x_length / nx
+  udx = 1. / (dlx*dlx)
+
   do j=1,ny
-     dfi(1,j)=udx*(phi(2,j)-(phi(1,j)+phi(1,j))+phi(nx,j))
+     dfi(1,j) = udx * (phi(2,j) - (phi(1,j)+phi(1,j)) + phi(nx,j))
      do i=2,nx-1
-        dfi(i,j)=udx*(phi(i+1,j)-(phi(i,j)+phi(i,j))&
-             +phi(i-1,j))
+        dfi(i,j) = udx * (phi(i+1,j) - (phi(i,j)+phi(i,j)) + phi(i-1,j))
      enddo
-     dfi(nx,j)=udx*(phi(1,j)-(phi(nx,j)+phi(nx,j))+phi(nx-1,j))
+     dfi(nx,j) = udx * (phi(1,j) - (phi(nx,j)+phi(nx,j)) + phi(nx-1,j))
   enddo
-	
+
   return
 end subroutine derxx
-!############################################
 
-!############################################
-!
 subroutine deryy(phi,nx,ny,dfi,y_length)
 !
 !Second derivative in the y direction
-!############################################
+!
 
   implicit none
 
@@ -267,22 +257,22 @@ subroutine deryy(phi,nx,ny,dfi,y_length)
   real(8) :: dly,y_length,udy
   integer :: i,j,nx,ny
 
-  dly=y_length/ny
-  udy=1./(dly*dly)
+  dly = y_length / ny
+  udy = 1. / (dly*dly)
+
   do j=2,ny-1
      do i=1,nx
-        dfi(i,j)=udy*(phi(i,j+1)-(phi(i,j)+phi(i,j))&
-             +phi(i,j-1))
+        dfi(i,j) = udy * (phi(i,j+1) - (phi(i,j)+phi(i,j)) + phi(i,j-1))
      enddo
   enddo
+
   do i=1,nx
-     dfi(i,1)=udy*(phi(i,2)-(phi(i,1)+phi(i,1))+phi(i,ny))
-     dfi(i,ny)=udy*(phi(i,1)-(phi(i,ny)+phi(i,ny))+phi(i,ny-1))
+     dfi(i,1) = udy * (phi(i,2) - (phi(i,1)+phi(i,1)) + phi(i,ny))
+     dfi(i,ny) = udy * (phi(i,1) - (phi(i,ny)+phi(i,ny)) + phi(i,ny-1))
   enddo
 	
   return
 end subroutine deryy
-!############################################
 
 !############################################
 !
