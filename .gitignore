@@ -1,3 +1,4 @@
 *.out
 *.exe
 vort*
+*.obj

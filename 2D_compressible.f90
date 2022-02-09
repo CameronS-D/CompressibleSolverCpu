@@ -8,7 +8,7 @@ program navierstokes
 !
   implicit none   !-->all the variables MUST be declared
 
-  integer,parameter :: nx=129,ny=129,nt=10000,ns=3,nf=3,mx=nf*nx,my=nf*ny
+  integer,parameter :: nx=2049,ny=2049,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
   !size of the computational domain (nx x ny) 
   !size of the exchanger (mx x my)
   !number of time step for the simulation
@@ -42,7 +42,7 @@ program navierstokes
   !we need to define the time step
   dx = x_length / nx !mesh size in x
   dy = y_length / ny !mesh sixe in y
-  CFL = 0.25  !CFL number for time step
+  CFL = 0.025  !CFL number for time step
   dlt = CFL * dlx
   print *,'The time step of the simulation is', dlt
   
@@ -371,11 +371,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   do j=1,ny
      do i=1,nx
         fro(i,j)=-tb1(i,j)-tb2(i,j)
-     enddo
-  enddo
-	
-  do j=1,ny
-     do i=1,nx
+
         tb1(i,j)=rou(i,j)*uuu(i,j)
         tb2(i,j)=rou(i,j)*vvv(i,j)
      enddo
@@ -392,14 +388,9 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   qtt=4./3
   do j=1,ny
      do i=1,nx
-        tba(i,j)=dyn_viscosity*(qtt*tb6(i,j)+tb7(i,j)+utt*tb9(i,j))
-        fru(i,j)=-tb3(i,j)-tb4(i,j)-tb5(i,j)+tba(i,j)&
-             -(eps(i,j)/eta)*uuu(i,j)
-     enddo
-  enddo
-		
-  do j=1,ny
-     do i=1,nx
+        tba(i,j) = dyn_viscosity * (qtt * tb6(i,j) + tb7(i,j) + utt * tb9(i,j))
+        fru(i,j)= -tb3(i,j) - tb4(i,j) - tb5(i,j) + tba(i,j) - (eps(i,j) / eta) * uuu(i,j)
+
         tb1(i,j)=rou(i,j)*vvv(i,j)
         tb2(i,j)=rov(i,j)*vvv(i,j)
      enddo
@@ -446,11 +437,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
              +(dyn_viscosity+dyn_viscosity)*(tb1(i,j)*tb1(i,j)+tb2(i,j)*tb2(i,j))&
              -dmu*(tb1(i,j)+tb2(i,j))*(tb1(i,j)+tb2(i,j))&
              +dyn_viscosity*(tb3(i,j)+tb4(i,j))*(tb3(i,j)+tb4(i,j))
-     enddo
-  enddo
-  
-  do j=1,ny
-     do i=1,nx
+
         tb1(i,j)=roe(i,j)*uuu(i,j)
         tb2(i,j)=pressure(i,j)*uuu(i,j) 
         tb3(i,j)=roe(i,j)*vvv(i,j)
