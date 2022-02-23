@@ -51,12 +51,18 @@ workbook, timings_sheet = setup_worksheet(filename)
 
 compiler_cmds = [
     ["gfortran -O3", "gfortran -O3"],
-    ["ifort_O3.bat", "ifort -O3"],
-    ["ifort_O3_parallel.bat", "ifort -O3 -Qparallel"],
-    ["ifort_O3_QxHost.bat", "ifort -O3 -QxHost"]
+    ["gfortran -O3 -fopenmp", "gfortran -O3 -fopenmp"],
+    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=2", "gfortran -O3 -fopenmp 2 threads"],
+    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=4", "gfortran -O3 -fopenmp 4 threads"],
+    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=6", "gfortran -O3 -fopenmp 6 threads"],
+    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=12", "gfortran -O3 -fopenmp 12 threads"]
+    # ["gfortran -O3 -ftree-parallelize-loops=2", "gfortran -O3 2 threads"],
+    # ["gfortran -O3 -ftree-parallelize-loops=4", "gfortran -O3 4 threads"],
+    # ["gfortran -O3 -ftree-parallelize-loops=6", "gfortran -O3 6 threads"],
+    # ["gfortran -O3 -ftree-parallelize-loops=12", "gfortran -O3 12 threads"]
     ]
 
-mesh_nx_options = [129, 257, 513]#, 1025, 2049]
+mesh_nx_options = [129, 257, 513, 1025, 2049]
 reps = 5
 
 for nx_option_idx in range(len(mesh_nx_options)):
@@ -86,7 +92,7 @@ for nx_option_idx in range(len(mesh_nx_options)):
             compile_cmd = cmd + " -o output.exe " + f90_file
 
         print("\nCompiling using: " + compile_cmd)
-        subprocess.call(compile_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        subprocess.call(compile_cmd)#, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
         if os.path.exists("output.exe"):
             print("Successfully compiled. Running output.exe")

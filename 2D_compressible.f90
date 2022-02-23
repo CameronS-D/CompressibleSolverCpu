@@ -8,7 +8,7 @@ program navierstokes
 !
   implicit none   !-->all the variables MUST be declared
 
-  integer,parameter :: nx=513,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
+  integer,parameter :: nx=2049,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
   !size of the computational domain (nx x ny) 
   !size of the exchanger (mx x my)
   !number of time step for the simulation
@@ -173,24 +173,31 @@ subroutine derix(phi,nx,ny,phi_deriv,x_length)
 !
 !First derivative in the x direction
 !
-  implicit none
+	implicit none
 
-  real(8),dimension(nx,ny) :: phi,phi_deriv
-  real(8) :: dlx,x_length,udx
-  integer :: i,j,nx,ny
-	
-  dlx = x_length / nx
-  udx = 1. / (2 * dlx)
+	real(8),dimension(nx,ny) :: phi,phi_deriv
+	real(8) :: dlx,x_length,udx
+	integer :: i,j,nx,ny
+		
+	dlx = x_length / nx
+	udx = 1. / (2 * dlx)
 
-  do j=1,ny
-   phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
-      do i=2,nx-1
-         phi_deriv(i,j) = udx * (phi(i+1,j) - phi(i-1,j))
-      enddo
-      phi_deriv(nx,j) = udx * (phi(1,j) - phi(nx-1,j))
-  enddo
-	
-  return
+	!   do j=1,ny
+	!    phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
+	    !   do i=2,nx-1
+	    !      phi_deriv(i,j) = udx * (phi(i+1,j) - phi(i-1,j))
+	    !   enddo
+	!       phi_deriv(nx,j) = udx * (phi(1,j) - phi(nx-1,j))
+	!   enddo
+	do CONCURRENT (j=1:ny)
+		phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
+		do CONCURRENT (i=2:nx-1)
+			phi_deriv(i,j) = udx * (phi(i+1,j) - phi(i-1,j))
+		enddo
+		phi_deriv(nx,j) = udx * (phi(1,j) - phi(nx-1,j))
+	enddo
+
+  	return
 end subroutine derix
 
 subroutine deriy(phi,nx,ny,dfi,y_length)
@@ -207,16 +214,14 @@ subroutine deriy(phi,nx,ny,dfi,y_length)
   dly = y_length / ny
   udy = 1. / (2 * dly)
 
-  do j=2,ny-1
-      do i=1,nx
-         dfi(i,j) = udy * (phi(i,j+1) - phi(i,j-1))
-      enddo
-  enddo
+  	do CONCURRENT (j=2:ny-1, i=1:nx)
+    	dfi(i,j) = udy * (phi(i,j+1) - phi(i,j-1))
+	enddo
 
-  do i=1,nx
-      dfi(i,1) = udy * (phi(i,2) - phi(i,ny))
-      dfi(i,ny) = udy * (phi(i,1) - phi(i,ny-1))
-  enddo
+	do CONCURRENT(i=1:nx)
+		dfi(i,1) = udy * (phi(i,2) - phi(i,ny))
+		dfi(i,ny) = udy * (phi(i,1) - phi(i,ny-1))
+	enddo
 	
   return
 end subroutine deriy
@@ -235,9 +240,9 @@ subroutine derxx(phi,nx,ny,dfi,x_length)
   dlx = x_length / nx
   udx = 1. / (dlx*dlx)
 
-  do j=1,ny
+  do CONCURRENT(j=1:ny)
      dfi(1,j) = udx * (phi(2,j) - (phi(1,j)+phi(1,j)) + phi(nx,j))
-     do i=2,nx-1
+     do CONCURRENT(i=2:nx-1)
         dfi(i,j) = udx * (phi(i+1,j) - (phi(i,j)+phi(i,j)) + phi(i-1,j))
      enddo
      dfi(nx,j) = udx * (phi(1,j) - (phi(nx,j)+phi(nx,j)) + phi(nx-1,j))
@@ -260,16 +265,14 @@ subroutine deryy(phi,nx,ny,dfi,y_length)
   dly = y_length / ny
   udy = 1. / (dly*dly)
 
-  do j=2,ny-1
-     do i=1,nx
-        dfi(i,j) = udy * (phi(i,j+1) - (phi(i,j)+phi(i,j)) + phi(i,j-1))
-     enddo
-  enddo
+	do CONCURRENT(j=2:ny-1, i=1:nx)
+		dfi(i,j) = udy * (phi(i,j+1) - (phi(i,j)+phi(i,j)) + phi(i,j-1))
+	enddo
 
-  do i=1,nx
-     dfi(i,1) = udy * (phi(i,2) - (phi(i,1)+phi(i,1)) + phi(i,ny))
-     dfi(i,ny) = udy * (phi(i,1) - (phi(i,ny)+phi(i,ny)) + phi(i,ny-1))
-  enddo
+	do CONCURRENT(i=1:nx)
+		dfi(i,1) = udy * (phi(i,2) - (phi(i,1)+phi(i,1)) + phi(i,ny))
+		dfi(i,ny) = udy * (phi(i,1) - (phi(i,ny)+phi(i,ny)) + phi(i,ny-1))
+	enddo
 	
   return
 end subroutine deryy
@@ -368,14 +371,12 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
 
   call derix(rou,nx,ny,tb1,x_length)
   call deriy(rov,nx,ny,tb2,y_length)
-  do j=1,ny
-     do i=1,nx
+  	do CONCURRENT(j=1:ny, i=1:nx)
         fro(i,j)=-tb1(i,j)-tb2(i,j)
 
         tb1(i,j)=rou(i,j)*uuu(i,j)
         tb2(i,j)=rou(i,j)*vvv(i,j)
-     enddo
-  enddo
+  	enddo
 	
   call derix(pressure,nx,ny,tb3,x_length)
   call derix(tb1,nx,ny,tb4,x_length)
@@ -384,17 +385,16 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call deryy(uuu,nx,ny,tb7,y_length)
   call derix(vvv,nx,ny,tb8,x_length)
   call deriy(tb8,nx,ny,tb9,y_length)
+
   utt=1./3
   qtt=4./3
-  do j=1,ny
-     do i=1,nx
+  	do CONCURRENT(j=1:ny, i=1:nx)
         tba(i,j) = dyn_viscosity * (qtt * tb6(i,j) + tb7(i,j) + utt * tb9(i,j))
         fru(i,j)= -tb3(i,j) - tb4(i,j) - tb5(i,j) + tba(i,j) - (eps(i,j) / eta) * uuu(i,j)
 
         tb1(i,j)=rou(i,j)*vvv(i,j)
         tb2(i,j)=rov(i,j)*vvv(i,j)
-     enddo
-  enddo
+    enddo
 	
   call deriy(pressure,nx,ny,tb3,y_length)
   call derix(tb1,nx,ny,tb4,x_length)
@@ -403,13 +403,12 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call deryy(vvv,nx,ny,tb7,y_length)
   call derix(uuu,nx,ny,tb8,x_length)
   call deriy(tb8,nx,ny,tb9,y_length)
-  do j=1,ny
-     do i=1,nx
-        tbb(i,j)=dyn_viscosity*(tb6(i,j)+qtt*tb7(i,j)+utt*tb9(i,j))
-        frv(i,j)=-tb3(i,j)-tb4(i,j)-tb5(i,j)+tbb(i,j)&
-             -(eps(i,j)/eta)*vvv(i,j)
-     enddo
-  enddo
+
+	do CONCURRENT(j=1:ny, i=1:nx)
+		tbb(i,j)=dyn_viscosity*(tb6(i,j)+qtt*tb7(i,j)+utt*tb9(i,j))
+		frv(i,j)=-tb3(i,j)-tb4(i,j)-tb5(i,j)+tbb(i,j)&
+			-(eps(i,j)/eta)*vvv(i,j)
+	enddo
 !
 !Equation for the tempature
 !
@@ -418,21 +417,19 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call derxx(scp,nx,ny,tb3,x_length)
   call deryy(scp,nx,ny,tb4,y_length)
 
-  do j=1,ny
-     do i=1,nx
+  	do CONCURRENT(j=1:ny, i=1:nx)
         ftp(i,j)=-uuu(i,j)*tb1(i,j)-vvv(i,j)*tb2(i,j)&
              + xkt*(tb3(i,j)+tb4(i,j))&
              - (eps(i,j)/eta)*scp(i,j)
-     enddo
-  enddo
+	enddo
   
   call derix(uuu,nx,ny,tb1,x_length)
   call deriy(vvv,nx,ny,tb2,y_length)
   call deriy(uuu,nx,ny,tb3,y_length)
   call derix(vvv,nx,ny,tb4,x_length)
-  dmu=2./3*dyn_viscosity
-  do j=1,ny
-     do i=1,nx
+
+  	dmu=2./3*dyn_viscosity
+  	do CONCURRENT(j=1:ny, i=1:nx)
         fre(i,j)=dyn_viscosity*(uuu(i,j)*tba(i,j)+vvv(i,j)*tbb(i,j))&
              +(dyn_viscosity+dyn_viscosity)*(tb1(i,j)*tb1(i,j)+tb2(i,j)*tb2(i,j))&
              -dmu*(tb1(i,j)+tb2(i,j))*(tb1(i,j)+tb2(i,j))&
@@ -442,8 +439,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
         tb2(i,j)=pressure(i,j)*uuu(i,j) 
         tb3(i,j)=roe(i,j)*vvv(i,j)
         tb4(i,j)=pressure(i,j)*vvv(i,j)
-     enddo
-  enddo
+  	enddo
 
   call derix(tb1,nx,ny,tb5,x_length)
   call derix(tb2,nx,ny,tb6,x_length)
@@ -452,11 +448,9 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call derxx(tmp,nx,ny,tb9,x_length)
   call deryy(tmp,nx,ny,tba,y_length)
    
-  do j=1,ny
-     do i=1,nx
+  	do CONCURRENT(j=1:ny, i=1:nx)
         fre(i,j)=fre(i,j)-tb5(i,j)-tb6(i,j)-tb7(i,j)-tb8(i,j)+lambda*(tb9(i,j)+tba(i,j))
-     enddo
-  enddo
+  	enddo
 	
   return
 end subroutine fluxx
@@ -509,10 +503,9 @@ subroutine adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
   real(8) :: dlt,ct1,ct2
   integer :: nx,ny,i,j
           
-  ct1=1.5*dlt
-  ct2=0.5*dlt
-  do j=1,ny
-     do i=1,nx
+	ct1=1.5*dlt
+	ct2=0.5*dlt
+  	do CONCURRENT(j=1:ny, i=1:nx)
         rho(i,j)=rho(i,j)+ct1*fro(i,j)-ct2*gro(i,j)
         gro(i,j)=fro(i,j)
         rou(i,j)=rou(i,j)+ct1*fru(i,j)-ct2*gru(i,j)
@@ -523,8 +516,7 @@ subroutine adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
         gre(i,j)=fre(i,j)
         scp(i,j)=scp(i,j)+ct1*ftp(i,j)-ct2*gtp(i,j)
         gtp(i,j)=ftp(i,j)
-     enddo
-  enddo
+  	enddo
 
   return
 end subroutine adams
@@ -565,16 +557,15 @@ subroutine initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,&
 !######################################################################
 
 !##########CYLINDER DEFINITION#########################################
-  do j=1,ny
-     do i=1,nx
+  	do CONCURRENT(j=1:ny, i=1:nx)
         if (((i*dlx - x_length/2.)**2 + (j*dly - y_length/2.)**2) .lt. radius**2) then
            eps(i,j)=1.
         else
            eps(i,j)=0.
         end if
-     enddo
-  enddo
+  	enddo
 !######################################################################
+
   do j=1,ny
      do i=1,nx
         uuu(i,j) = uu0
@@ -631,18 +622,16 @@ subroutine etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
   real(8) :: ct7,gamma,ct8,chp
   integer :: i,j,nx,ny
 	
-  ct7=gamma-1.
-  ct8=gamma/(gamma-1.)
+	ct7=gamma-1.
+	ct8=gamma/(gamma-1.)
 
-  do j=1,ny
-     do i=1,nx
+  	do CONCURRENT(j=1:ny, i=1:nx)
         uuu(i,j)=rou(i,j)/rho(i,j)
         vvv(i,j)=rov(i,j)/rho(i,j)
         pressure(i,j)=ct7*(roe(i,j)-0.5*(rou(i,j)*uuu(i,j)+&
              rov(i,j)*vvv(i,j)))
         tmp(i,j)=ct8*pressure(i,j)/(rho(i,j)*chp)
-     enddo
-  enddo
+  	enddo
 	
   return
 end subroutine etatt
