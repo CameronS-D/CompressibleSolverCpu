@@ -42,16 +42,31 @@ def change_nx_value(old_val: int, new_val: int):
     with open(f90_file, "w") as f:
         f.write(full_file)
 
-def is_output_correct(correct_code_cmd, test_code_cmd):
-    print(f"Testing code output. Calling {correct_code_cmd} and {test_code_cmd}")
-    proc = subprocess.run(correct_code_cmd, stdout=subprocess.PIPE)
-    correct_output = proc.stdout
+def is_output_correct(correct_output, test_code_cmd):
+    print(f"Testing code output. Calling test code: {test_code_cmd}")
 
-    proc = subprocess.run(test_code_cmd, stdout=subprocess.PIPE)
+    proc = subprocess.run(test_code_cmd, stdout=subprocess.PIPE, encoding="UTF-8")
     test_output = proc.stdout
 
     print("Comparing output...")
-    return correct_output == test_output
+    cor_output_list = correct_output.split()
+    test_output_list = test_output.split()
+    if len(cor_output_list) != len(test_output_list):
+        print("Error: Test code output is too short.")
+        print(f"Correct length: {len(cor_output_list)}, Test length: {len(test_output_list)}")
+        if len(test_output_list) == 0:
+            print(test_output)
+        return False 
+
+    # for cor_line, test_line in zip(correct_output.split(), test_output.split()):
+    #     if cor_line[:10] != test_line[:10]:
+    #         print(cor_line[:10])
+    #         print(test_line[:10])
+    #         print()
+    #         return False
+    #     print(test_line)
+    
+    return True
 
 
 if os.path.isdir("code_timing"):
@@ -72,7 +87,7 @@ filename = os.path.join("execution_timings.xlsx")
 workbook, timings_sheet = setup_worksheet(filename)
 
 compiler_cmds = [
-    ["gfortran -O3", "gfortran -O3"],
+    # ["gfortran -O3", "gfortran -O3"],
     ["gfortran -O3 -fopenmp", "gfortran -O3 -fopenmp"],
     ["gfortran -O3 -fopenmp -ftree-parallelize-loops=1", "gfortran -O3 -fopenmp 1 threads"],
     ["gfortran -O3 -fopenmp -ftree-parallelize-loops=2", "gfortran -O3 -fopenmp 2 threads"],
@@ -80,35 +95,47 @@ compiler_cmds = [
     ["gfortran -O3 -fopenmp -ftree-parallelize-loops=4", "gfortran -O3 -fopenmp 4 threads"]
     ]
 
-mesh_nx_options = [129, 257, 513, 1025, 2049]
+mesh_nx_options = [129, 257, 513]
+last_nx_val = mesh_nx_options[-1]
 reps = 5
 
-for nx_option_idx in range(len(mesh_nx_options)):
-    # Change value of nx in fortran code and add new nx row to spreadsheet
-    change_nx_value(mesh_nx_options[nx_option_idx - 1], mesh_nx_options[nx_option_idx])
-    nx_col = timings_sheet.min_column
-    
-    if nx_option_idx == 0:
-        if timings_sheet.min_column != timings_sheet.max_column:
-            next_row = timings_sheet.max_row+1
-            for col in range(nx_col, timings_sheet.max_column + 1):
-                save_to_worksheet(timings_sheet, col, "-", row=next_row)
-        
-        save_to_worksheet(timings_sheet, nx_col, "nx")
+next_excel_col = timings_sheet.min_column
+if timings_sheet.min_column != timings_sheet.max_column:
+    next_row = timings_sheet.max_row+1
+    for col in range(next_excel_col, timings_sheet.max_column + 1):
+        save_to_worksheet(timings_sheet, col, "-", row=next_row)
 
-    save_to_worksheet(timings_sheet, nx_col, mesh_nx_options[nx_option_idx])
+for val in ["nx"] + mesh_nx_options:
+    save_to_worksheet(timings_sheet, next_excel_col, val)
 
-    next_excel_col = nx_col + 1
+if original_f90_file:
+    print("Calculating correct output for comparison.")
 
-    for cmd, option_name in compiler_cmds:
-        if nx_option_idx == 0:
+    # Compile
+    original_code_cmd = "gfortran -O3 -o correct_output.exe " + original_f90_file
+    subprocess.run(original_code_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    # Run and save output
+    proc = subprocess.run("./correct_output.exe", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="UTF-8")
+    correct_output = proc.stdout
+    # Tidy up
+    os.remove("./correct_output.exe")
+
+for cmd, option_name in compiler_cmds:
+
+    if cmd.endswith(".bat"):
+        compile_cmd = cmd
+    else:
+        compile_cmd = cmd + " -o output.exe " + f90_file
+
+    next_excel_col += 1
+
+    for nx_option in mesh_nx_options:
+        # Change value of nx in fortran code and add new nx row to spreadsheet
+        change_nx_value(last_nx_val, nx_option)
+        last_nx_val = nx_option
+
+        if nx_option == mesh_nx_options[0]:
             save_to_worksheet(timings_sheet, next_excel_col, option_name)
-
-        if cmd.endswith(".bat"):
-            compile_cmd = cmd
-        else:
-            compile_cmd = cmd + " -o output.exe " + f90_file
-            original_code_cmd = cmd + " -o correct_output.exe " + original_f90_file
 
         print("\nCompiling using: " + compile_cmd)
         subprocess.run(compile_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
@@ -117,22 +144,16 @@ for nx_option_idx in range(len(mesh_nx_options)):
             print("Successfully compiled. Running output.exe")
         else:
             print("Compile failed. Moving to next compiler command.")
-            next_excel_col += 1
-            continue
+            break
 
-        if mesh_nx_options[nx_option_idx] == 129:
-            print("Compiling original code for comparison.")
-            subprocess.run(original_code_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-            is_correct = is_output_correct("./correct_output.exe", "./output.exe")
-            os.remove("./correct_output.exe")
-
-            if is_correct:
-                print("Code output is correct. Measuring runtime.")
+        if original_f90_file:
+            if is_output_correct(correct_output, "./output.exe"):
+                print("Code output is CORRECT. Measuring runtime.")
             else:
-                print("Incorrect output file produced. Moving to next compiler command.")
+                print("INCORRECT output file produced. Moving to next compiler command.")
                 save_to_worksheet(timings_sheet, next_excel_col, "N/A")
-                next_excel_col += 1
-                continue
+                os.remove("output.exe")
+                break
 
         elapsed_time = timeit(
             stmt = "subprocess.run('./output.exe', stdout=subprocess.DEVNULL)",
@@ -143,8 +164,8 @@ for nx_option_idx in range(len(mesh_nx_options)):
         save_to_worksheet(timings_sheet, next_excel_col, elapsed_time)
 
         os.remove("output.exe")
-        next_excel_col += 1
 
+change_nx_value(last_nx_val, mesh_nx_options[-1])
 
 print(f"\nCompleted test run. Saving worksheet to {filename}.")
 workbook.save(filename)
