@@ -41,22 +41,25 @@ def change_nx_value(old_val: int, new_val: int):
     with open(f90_file, "w") as f:
         f.write(full_file)
 
+
 if os.path.isdir("code_timing"):
     os.chdir("code_timing")
 
 f90_file = os.path.join("..", "2D_compressible.f90")
+
+if not os.path.exists(f90_file):
+    print(f"Error: Fortran file not found: {f90_file}")
+    quit(1)
+
 filename = os.path.join("execution_timings.xlsx")
 
 workbook, timings_sheet = setup_worksheet(filename)
 
 compiler_cmds = [
-    ["gfortran -O3", "gfortran -O3"],
-    ["ifort_O3.bat", "ifort -O3"],
-    ["ifort_O3_parallel.bat", "ifort -O3 -Qparallel"],
-    ["ifort_O3_QxHost.bat", "ifort -O3 -QxHost"]
+    ["gfortran -O3", "gfortran -O3"]
     ]
 
-mesh_nx_options = [129, 257, 513]#, 1025, 2049]
+mesh_nx_options = [129, 257, 513, 1025, 2049]
 reps = 5
 
 for nx_option_idx in range(len(mesh_nx_options)):
@@ -86,7 +89,7 @@ for nx_option_idx in range(len(mesh_nx_options)):
             compile_cmd = cmd + " -o output.exe " + f90_file
 
         print("\nCompiling using: " + compile_cmd)
-        subprocess.call(compile_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        subprocess.run(compile_cmd.split(), stdout=subprocess.STDOUT, stderr=subprocess.STDOUT)
 
         if os.path.exists("output.exe"):
             print("Successfully compiled. Running output.exe")
@@ -96,7 +99,7 @@ for nx_option_idx in range(len(mesh_nx_options)):
             continue
 
         elapsed_time = timeit(
-            stmt = "subprocess.run('output.exe', stdout=subprocess.DEVNULL)",
+            stmt = "subprocess.run('./output.exe', stdout=subprocess.DEVNULL)",
             setup = "import subprocess",
             number = reps) / reps
 
