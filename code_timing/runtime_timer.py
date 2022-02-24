@@ -22,10 +22,9 @@ def save_to_worksheet(worksheet, col, result, row=None):
 
     worksheet.cell(row=row, column=col).value = result
 
-def change_nx_value(old_val: int, new_val: int):
-    print(f"\n\nChanging nx from {old_val} to {new_val}\n")
-
-    with open(f90_file, "r") as f:
+def change_nx_value(filename, old_vals, new_val):
+    # Read in full file
+    with open(filename, "r") as f:
         firstlines = ""
         for line_idx, line in enumerate(f):
             firstlines += line
@@ -35,11 +34,14 @@ def change_nx_value(old_val: int, new_val: int):
         nx_line = f.readline()
         rest_of_file = f.read()
 
-    nx_line = nx_line.replace(str(old_val), str(new_val), 1)
+    # Change nx value on single line
+    for old_val in old_vals:
+        nx_line = nx_line.replace(str(old_val), str(new_val), 1)
 
     full_file = firstlines + nx_line + rest_of_file
 
-    with open(f90_file, "w") as f:
+    # Write out file
+    with open(filename, "w") as f:
         f.write(full_file)
 
 def is_output_correct(correct_output, test_code_cmd):
@@ -54,20 +56,26 @@ def is_output_correct(correct_output, test_code_cmd):
     if len(cor_output_list) != len(test_output_list):
         print("Error: Test code output is too short.")
         print(f"Correct length: {len(cor_output_list)}, Test length: {len(test_output_list)}")
-        if len(test_output_list) == 0:
-            print(test_output)
         return False 
 
-    # for cor_line, test_line in zip(correct_output.split(), test_output.split()):
-    #     if cor_line[:10] != test_line[:10]:
-    #         print(cor_line[:10])
-    #         print(test_line[:10])
-    #         print()
-    #         return False
-    #     print(test_line)
-    
+    for cor_line, test_line in zip(correct_output.split(), test_output.split()):
+        if cor_line[:10] != test_line[:10]:
+            print("Error: Test code value is incorrect.")
+            print(cor_line[:10])
+            print(test_line[:10], "\n")
+            return False
     return True
 
+def get_correct_output(filename):
+    # Compile
+    original_code_cmd = "gfortran -O3 -o correct_output.exe " + filename
+    subprocess.run(original_code_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    # Run output
+    proc = subprocess.run("./correct_output.exe", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="UTF-8")
+    # Tidy up
+    os.remove("./correct_output.exe")
+
+    return proc.stdout
 
 if os.path.isdir("code_timing"):
     os.chdir("code_timing")
@@ -87,7 +95,7 @@ filename = os.path.join("execution_timings.xlsx")
 workbook, timings_sheet = setup_worksheet(filename)
 
 compiler_cmds = [
-    # ["gfortran -O3", "gfortran -O3"],
+    ["gfortran -O3", "gfortran -O3"],
     ["gfortran -O3 -fopenmp", "gfortran -O3 -fopenmp"],
     ["gfortran -O3 -fopenmp -ftree-parallelize-loops=1", "gfortran -O3 -fopenmp 1 threads"],
     ["gfortran -O3 -fopenmp -ftree-parallelize-loops=2", "gfortran -O3 -fopenmp 2 threads"],
@@ -109,16 +117,15 @@ for val in ["nx"] + mesh_nx_options:
     save_to_worksheet(timings_sheet, next_excel_col, val)
 
 if original_f90_file:
-    print("Calculating correct output for comparison.")
-
-    # Compile
-    original_code_cmd = "gfortran -O3 -o correct_output.exe " + original_f90_file
-    subprocess.run(original_code_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    # Run and save output
-    proc = subprocess.run("./correct_output.exe", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="UTF-8")
-    correct_output = proc.stdout
-    # Tidy up
-    os.remove("./correct_output.exe")
+    correct_outputs = {}
+    for nx in mesh_nx_options:
+        print(f"Calculating correct output for nx = {nx}")
+        change_nx_value(original_f90_file, mesh_nx_options, nx)
+        output = get_correct_output(original_f90_file)
+        correct_outputs[nx] = output
+    
+    change_nx_value(original_f90_file, mesh_nx_options, mesh_nx_options[0])
+    print("Finshed getting correct outputs")
 
 for cmd, option_name in compiler_cmds:
 
@@ -131,7 +138,8 @@ for cmd, option_name in compiler_cmds:
 
     for nx_option in mesh_nx_options:
         # Change value of nx in fortran code and add new nx row to spreadsheet
-        change_nx_value(last_nx_val, nx_option)
+        print(f"\nChanging nx value to {nx_option}")
+        change_nx_value(f90_file, mesh_nx_options, nx_option)
         last_nx_val = nx_option
 
         if nx_option == mesh_nx_options[0]:
@@ -147,7 +155,7 @@ for cmd, option_name in compiler_cmds:
             break
 
         if original_f90_file:
-            if is_output_correct(correct_output, "./output.exe"):
+            if is_output_correct(correct_outputs[nx_option], "./output.exe"):
                 print("Code output is CORRECT. Measuring runtime.")
             else:
                 print("INCORRECT output file produced. Moving to next compiler command.")
@@ -165,7 +173,7 @@ for cmd, option_name in compiler_cmds:
 
         os.remove("output.exe")
 
-change_nx_value(last_nx_val, mesh_nx_options[-1])
+change_nx_value(f90_file, mesh_nx_options, mesh_nx_options[-1])
 
 print(f"\nCompleted test run. Saving worksheet to {filename}.")
 workbook.save(filename)

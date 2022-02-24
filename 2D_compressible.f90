@@ -8,15 +8,15 @@ program navierstokes
 !
   implicit none   !-->all the variables MUST be declared
 
-  integer,parameter :: nx=2049,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
+  integer,parameter :: nx=513,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
   !size of the computational domain (nx x ny) 
   !size of the exchanger (mx x my)
   !number of time step for the simulation
 
   !Declaration of variables
-  real(8),dimension(nx,ny) :: uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv
-  real(8),dimension(nx,ny) :: roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9
-  real(8),dimension(nx,ny) :: tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp
+  real(8), allocatable, dimension(:, :) :: uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv
+  real(8), allocatable, dimension(:, :) :: roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9
+  real(8), allocatable, dimension(:, :) :: tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp
   real(8),dimension(mx) :: xx
   real(8),dimension(my) :: yy
   real(8),dimension(mx,my) :: tf
@@ -27,6 +27,16 @@ program navierstokes
 !**************************************************
   character(len=20) nfichier
 !*******************************************
+
+  !Allocate array memory
+  allocate(uuu(nx, ny), vvv(nx, ny), rho(nx, ny), eee(nx, ny), pressure(nx, ny), tmp(nx, ny), &
+           rou(nx, ny), rov(nx, ny), wz(nx, ny), tuu(nx, ny), tvv(nx, ny))
+  allocate(roe(nx, ny), tb1(nx, ny), tb2(nx, ny), tb3(nx, ny), tb4(nx, ny), tb5(nx, ny), &
+           tb6(nx, ny), tb7(nx, ny), tb8(nx, ny), tb9(nx, ny))
+  allocate(tba(nx, ny), tbb(nx, ny), fro(nx, ny), fru(nx, ny), frv(nx, ny), fre(nx, ny), &
+           gro(nx, ny), gru(nx, ny), grv(nx, ny), gre(nx, ny), eps(nx, ny), ftp(nx, ny), &
+           gtp(nx, ny), scp(nx, ny))
+
   !Name of the file for visualisation:
   990 format('vort',I4.4)
   imodulo=2500 !snapshots to be saved every imodulo time steps
@@ -140,6 +150,11 @@ program navierstokes
 
   enddo
   !END OF THE TIME LOOP
+
+  deallocate(uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv)
+  deallocate(roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9)
+  deallocate(tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp)
+
 end program navierstokes
 !
 !END OF THE MAIN PROGRAMME
@@ -182,13 +197,6 @@ subroutine derix(phi,nx,ny,phi_deriv,x_length)
 	dlx = x_length / nx
 	udx = 1. / (2 * dlx)
 
-	!   do j=1,ny
-	!    phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
-	    !   do i=2,nx-1
-	    !      phi_deriv(i,j) = udx * (phi(i+1,j) - phi(i-1,j))
-	    !   enddo
-	!       phi_deriv(nx,j) = udx * (phi(1,j) - phi(nx-1,j))
-	!   enddo
 	do CONCURRENT (j=1:ny)
 		phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
 		do CONCURRENT (i=2:nx-1)
@@ -214,7 +222,7 @@ subroutine deriy(phi,nx,ny,dfi,y_length)
   dly = y_length / ny
   udy = 1. / (2 * dly)
 
-  	do CONCURRENT (j=2:ny-1, i=1:nx)
+  do CONCURRENT (j=2:ny-1, i=1:nx)
     	dfi(i,j) = udy * (phi(i,j+1) - phi(i,j-1))
 	enddo
 
