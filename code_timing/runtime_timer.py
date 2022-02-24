@@ -41,10 +41,16 @@ def change_nx_value(old_val: int, new_val: int):
     with open(f90_file, "w") as f:
         f.write(full_file)
 
+
 if os.path.isdir("code_timing"):
     os.chdir("code_timing")
 
 f90_file = os.path.join("..", "2D_compressible.f90")
+
+if not os.path.exists(f90_file):
+    print(f"Error: Fortran file not found: {f90_file}")
+    quit(1)
+
 filename = os.path.join("execution_timings.xlsx")
 
 workbook, timings_sheet = setup_worksheet(filename)
@@ -92,7 +98,7 @@ for nx_option_idx in range(len(mesh_nx_options)):
             compile_cmd = cmd + " -o output.exe " + f90_file
 
         print("\nCompiling using: " + compile_cmd)
-        subprocess.call(compile_cmd)#, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        subprocess.run(compile_cmd.split(), stdout=subprocess.STDOUT, stderr=subprocess.STDOUT)
 
         if os.path.exists("output.exe"):
             print("Successfully compiled. Running output.exe")
@@ -102,7 +108,7 @@ for nx_option_idx in range(len(mesh_nx_options)):
             continue
 
         elapsed_time = timeit(
-            stmt = "subprocess.run('output.exe', stdout=subprocess.DEVNULL)",
+            stmt = "subprocess.run('./output.exe', stdout=subprocess.DEVNULL)",
             setup = "import subprocess",
             number = reps) / reps
 
