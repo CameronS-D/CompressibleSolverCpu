@@ -96,14 +96,14 @@ workbook, timings_sheet = setup_worksheet(filename)
 
 compiler_cmds = [
     ["gfortran -O3", "gfortran -O3"],
-    ["gfortran -O3 -fopenmp", "gfortran -O3 -fopenmp"],
-    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=1", "gfortran -O3 -fopenmp 1 threads"],
-    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=2", "gfortran -O3 -fopenmp 2 threads"],
-    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=3", "gfortran -O3 -fopenmp 3 threads"],
-    ["gfortran -O3 -fopenmp -ftree-parallelize-loops=4", "gfortran -O3 -fopenmp 4 threads"]
-    ]
+    ["ifort -O3", "ifort -O3"],
+    ["ifort -O3 -parallel", "ifort -O3 -parallel"],
+    ["ifort -O3 -fopenmp", "ifort -O3 -fopenmp"]
+    # ["gfortran -O3 -fopenmp", "gfortran -O3 -fopenmp"],
+    # ["gfortran -O3 -fopenmp -ftree-parallelize-loops=1", "gfortran -O3 -fopenmp 1 threads"]
+]
 
-mesh_nx_options = [129, 257, 513]
+mesh_nx_options = [129, 257, 513, 1025, 2049]
 last_nx_val = mesh_nx_options[-1]
 reps = 5
 
@@ -173,7 +173,7 @@ for cmd, option_name in compiler_cmds:
 
         os.remove("output.exe")
 
-change_nx_value(f90_file, mesh_nx_options, mesh_nx_options[-1])
+change_nx_value(f90_file, mesh_nx_options, mesh_nx_options[0])
 
 print(f"\nCompleted test run. Saving worksheet to {filename}.")
 workbook.save(filename)
