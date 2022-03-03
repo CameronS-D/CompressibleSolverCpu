@@ -1,4 +1,5 @@
 from cgi import test
+from readline import write_history_file
 import subprocess
 import os
 from timeit import timeit
@@ -15,10 +16,17 @@ def setup_worksheet(filename):
 
 def save_to_worksheet(worksheet, col, result, row=None):
     if not row:
-        # First first empty row in column
-        row = 1
-        while worksheet.cell(row=row, column=col).value:
-            row += 1
+        letter_col = openpyxl.utils.get_column_letter(col)
+        col_cells = [cell for cell in worksheet[letter_col]]
+
+        # Find last cell in column with a value
+        row = worksheet.max_row
+        for cell in col_cells[::-1]:
+            if cell.value is not None:
+                break
+            row -= 1
+        # We need the cell after which is empty
+        row += 1
 
     worksheet.cell(row=row, column=col).value = result
 
@@ -86,7 +94,7 @@ if not os.path.exists(f90_file):
     quit(1)
 
 original_f90_file = "original_2D_compressible.f90"
-if not os.path.exists(original_f90_file):
+if not original_f90_file or not os.path.exists(original_f90_file):
     print("Warning: Original code not found")
     original_f90_file = None
 
@@ -95,10 +103,10 @@ filename = os.path.join("execution_timings.xlsx")
 workbook, timings_sheet = setup_worksheet(filename)
 
 compiler_cmds = [
-    ["gfortran -O3", "gfortran -O3"],
-    ["ifort -O3", "ifort -O3"],
-    ["ifort -O3 -parallel", "ifort -O3 -parallel"],
-    ["ifort -O3 -fopenmp", "ifort -O3 -fopenmp"]
+    # ["gfortran -O3", "gfortran -O3"],
+    # ["ifort -O3", "ifort -O3"],
+    # ["ifort -O3 -parallel", "ifort -O3 -parallel"],
+    # ["ifort -O3 -fopenmp", "ifort -O3 -fopenmp"]
     # ["gfortran -O3 -fopenmp", "gfortran -O3 -fopenmp"],
     # ["gfortran -O3 -fopenmp -ftree-parallelize-loops=1", "gfortran -O3 -fopenmp 1 threads"]
 ]
@@ -110,7 +118,7 @@ reps = 5
 next_excel_col = timings_sheet.min_column
 if timings_sheet.min_column != timings_sheet.max_column:
     next_row = timings_sheet.max_row+1
-    for col in range(next_excel_col, timings_sheet.max_column + 1):
+    for col in range(next_excel_col, next_excel_col + len(compiler_cmds) + 1):
         save_to_worksheet(timings_sheet, col, "-", row=next_row)
 
 for val in ["nx"] + mesh_nx_options:
@@ -172,6 +180,8 @@ for cmd, option_name in compiler_cmds:
         save_to_worksheet(timings_sheet, next_excel_col, elapsed_time)
 
         os.remove("output.exe")
+    
+    workbook.save(filename)
 
 change_nx_value(f90_file, mesh_nx_options, mesh_nx_options[0])
 

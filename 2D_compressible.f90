@@ -8,7 +8,7 @@ program navierstokes
 !
   implicit none   !-->all the variables MUST be declared
 
-  integer,parameter :: nx=513,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
+  integer,parameter :: nx=2049,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
   !size of the computational domain (nx x ny) 
   !size of the exchanger (mx x my)
   !number of time step for the simulation
@@ -17,10 +17,8 @@ program navierstokes
   real(8), allocatable, dimension(:, :) :: uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv
   real(8), allocatable, dimension(:, :) :: roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9
   real(8), allocatable, dimension(:, :) :: tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp
-  real(8),dimension(mx) :: xx
-  real(8),dimension(my) :: yy
-  real(8),dimension(mx,my) :: tf
-  real(8),dimension(2,ns) :: coef
+  real(8), allocatable, dimension(:) :: xx, yy
+  real(8), allocatable, dimension(:, :) :: tf, coef
   integer :: i,j,itemp,k,n,ni,nj,imodulo
   real(8) :: x_length,y_length,CFL,dlx,dx,dyn_viscosity,xkt
   real(8) :: lambda,gamma,chp,eta,dlt,u_mean,v_mean,t_mean,x,y,dy
@@ -36,6 +34,7 @@ program navierstokes
   allocate(tba(nx, ny), tbb(nx, ny), fro(nx, ny), fru(nx, ny), frv(nx, ny), fre(nx, ny), &
            gro(nx, ny), gru(nx, ny), grv(nx, ny), gre(nx, ny), eps(nx, ny), ftp(nx, ny), &
            gtp(nx, ny), scp(nx, ny))
+  allocate(xx(mx), yy(my), tf(mx, my), coef(2, ns))
 
   !Name of the file for visualisation:
   990 format('vort',I4.4)
@@ -154,6 +153,7 @@ program navierstokes
   deallocate(uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv)
   deallocate(roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9)
   deallocate(tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp)
+  deallocate(xx, yy, tf, coef)
 
 end program navierstokes
 !
@@ -170,16 +170,9 @@ subroutine average(array, mean, nx, ny)
 !
   real(8),dimension(nx,ny) :: array
   real(8) :: mean
-  integer :: i,j,nx,ny
+  integer :: nx,ny
 
-  mean=0.
-  do j=1,ny
-   do i=1,nx
-      mean = mean + array(i,j)
-   enddo
-  enddo
-
-  mean=mean/(real(nx*ny))
+  mean= sum(array) / real(nx*ny)
 
   return
 end subroutine average
@@ -199,11 +192,13 @@ subroutine derix(phi,nx,ny,phi_deriv,x_length)
 
 	do CONCURRENT (j=1:ny)
 		phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
-		do CONCURRENT (i=2:nx-1)
-			phi_deriv(i,j) = udx * (phi(i+1,j) - phi(i-1,j))
-		enddo
-		phi_deriv(nx,j) = udx * (phi(1,j) - phi(nx-1,j))
+    phi_deriv(nx,j) = udx * (phi(1,j) - phi(nx-1,j))
 	enddo
+
+  do CONCURRENT (j=1:ny, i=2:nx-1)
+    phi_deriv(i,j) = udx * (phi(i+1,j) - phi(i-1,j))
+  enddo
+		
 
   	return
 end subroutine derix
@@ -250,11 +245,13 @@ subroutine derxx(phi,nx,ny,dfi,x_length)
 
   do CONCURRENT(j=1:ny)
      dfi(1,j) = udx * (phi(2,j) - (phi(1,j)+phi(1,j)) + phi(nx,j))
-     do CONCURRENT(i=2:nx-1)
-        dfi(i,j) = udx * (phi(i+1,j) - (phi(i,j)+phi(i,j)) + phi(i-1,j))
-     enddo
      dfi(nx,j) = udx * (phi(1,j) - (phi(nx,j)+phi(nx,j)) + phi(nx-1,j))
   enddo
+
+  do CONCURRENT(j=1:ny, i=2:nx-1)
+    dfi(i,j) = udx * (phi(i+1,j) - (phi(i,j)+phi(i,j)) + phi(i-1,j))
+  enddo
+     
 
   return
 end subroutine derxx
