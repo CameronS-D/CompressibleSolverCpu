@@ -10,10 +10,12 @@ program do_concurrent_test
     do m = 1, 1000
         do CONCURRENT(j=1:n, i=1:n)
             x = real(m)
-            a_array(j, i) = 0.
-            b_array(j, i) = x * x * 2.0 * exp(i / SIN(j * 2 * 3.1415 / n))** 1.25 * cos(x)
-            c_array(j, i) = exp(x) * 2.0 * sqrt(exp(cos(real(j / n + n / i) ** 3)) ) ** 3.4
-            a_array(j, i) = b_array(j, i) / i + c_array(j, i) / j
+            a_array(i, j) = 0.
+            b_array(i, j) = x * x * 2.0 * exp(i / SIN(j * 2 * 3.1415 / n))** 1.25 * cos(x)
+            c_array(i, j) = exp(x) * 2.0 * sqrt(exp(cos(real(i / n + n / j) ** 3)) ) ** 3.4
+            a_array(i, j) = b_array(i, j) / j + c_array(i, j) / i
+            c_array(i, j) = b_array(i, j) - a_array(i, j) * j
+            b_array(i, j) = c_array(i, j) * b_array(i, j) * c_array(i, j)
         enddo
     enddo
 
