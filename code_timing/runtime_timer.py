@@ -64,12 +64,23 @@ def is_output_correct(correct_output, test_code_cmd):
         print(f"Correct length: {len(cor_output_list)}, Test length: {len(test_output_list)}")
         return False 
 
-    for cor_line, test_line in zip(correct_output.split(), test_output.split()):
-        if cor_line[:10] != test_line[:10]:
-            print("Error: Test code value is incorrect.")
-            print(cor_line[:10])
-            print(test_line[:10], "\n")
-            return False
+    for cor_line, test_line in zip(cor_output_list, test_output_list):
+        correct = cor_line[:10]
+        test = test_line[:10]
+
+        if correct == test:
+            continue
+        try:
+            if round(float(correct) * 1e6) == round(float(test) * 1e6):
+                continue
+        except ValueError:
+            # Tried to convert word to float - output must be wrong
+            pass
+        
+        print("Error: Test code value is incorrect.")
+        print(f"Correct value: {correct}")
+        print(f"Output value: {test}")
+        return False
     return True
 
 def get_correct_output(filename):

@@ -6,3 +6,5 @@ vort*
 *.xlsx
 *.bat
 *.txt
+*.lib
+*.exp
