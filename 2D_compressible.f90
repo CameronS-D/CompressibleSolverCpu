@@ -8,7 +8,7 @@ program navierstokes
 !
   implicit none   !-->all the variables MUST be declared
 
-  integer,parameter :: nx=2049,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
+  integer,parameter :: nx=129,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
   !size of the computational domain (nx x ny) 
   !size of the exchanger (mx x my)
   !number of time step for the simulation
@@ -51,7 +51,7 @@ program navierstokes
   !we need to define the time step
   dx = x_length / nx !mesh size in x
   dy = y_length / ny !mesh sixe in y
-  CFL = 0.025  !CFL number for time step
+  CFL = 0.025d0  !CFL number for time step
   dlt = CFL * dlx
   print *,'The time step of the simulation is', dlt
   
@@ -172,7 +172,7 @@ subroutine average(array, mean, nx, ny)
   real(8) :: mean
   integer :: nx,ny
 
-  mean= sum(array) / real(nx*ny)
+  mean = sum(array) / (nx * ny)
 
   return
 end subroutine average
@@ -188,7 +188,7 @@ subroutine derix(phi,nx,ny,phi_deriv,x_length)
 	integer :: i,j,nx,ny
 		
 	dlx = x_length / nx
-	udx = 1. / (2 * dlx)
+	udx = 1. / (2. * dlx)
 
 	do CONCURRENT (j=1:ny)
 		phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
@@ -215,7 +215,7 @@ subroutine deriy(phi,nx,ny,dfi,y_length)
   integer :: i,j,nx,ny
 	
   dly = y_length / ny
-  udy = 1. / (2 * dly)
+  udy = 1. / (2. * dly)
 
   do CONCURRENT (j=2:ny-1, i=1:nx)
     	dfi(i,j) = udy * (phi(i,j+1) - phi(i,j-1))
@@ -376,6 +376,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
 
   call derix(rou,nx,ny,tb1,x_length)
   call deriy(rov,nx,ny,tb2,y_length)
+
   	do CONCURRENT(j=1:ny, i=1:nx)
         fro(i,j)=-tb1(i,j)-tb2(i,j)
 
@@ -391,8 +392,8 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call derix(vvv,nx,ny,tb8,x_length)
   call deriy(tb8,nx,ny,tb9,y_length)
 
-  utt=1./3
-  qtt=4./3
+  utt = 1.d0 / 3
+  qtt = 4.d0 / 3
   	do CONCURRENT(j=1:ny, i=1:nx)
         tba(i,j) = dyn_viscosity * (qtt * tb6(i,j) + tb7(i,j) + utt * tb9(i,j))
         fru(i,j)= -tb3(i,j) - tb4(i,j) - tb5(i,j) + tba(i,j) - (eps(i,j) / eta) * uuu(i,j)
@@ -433,7 +434,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call deriy(uuu,nx,ny,tb3,y_length)
   call derix(vvv,nx,ny,tb4,x_length)
 
-  	dmu=2./3*dyn_viscosity
+  	dmu = 2.d0 / 3 * dyn_viscosity
   	do CONCURRENT(j=1:ny, i=1:nx)
         fre(i,j)=dyn_viscosity*(uuu(i,j)*tba(i,j)+vvv(i,j)*tbb(i,j))&
              +(dyn_viscosity+dyn_viscosity)*(tb1(i,j)*tb1(i,j)+tb2(i,j)*tb2(i,j))&
@@ -508,8 +509,8 @@ subroutine adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
   real(8) :: dlt,ct1,ct2
   integer :: nx,ny,i,j
           
-	ct1=1.5*dlt
-	ct2=0.5*dlt
+	ct1 = 1.5 * dlt
+	ct2 = 0.5 * dlt
   	do CONCURRENT(j=1:ny, i=1:nx)
         rho(i,j)=rho(i,j)+ct1*fro(i,j)-ct2*gro(i,j)
         gro(i,j)=fro(i,j)
@@ -546,15 +547,15 @@ subroutine initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,&
 
   dlx = x_length / nx
   dly = y_length / ny
-  eta = 0.1
+  eta = 0.1d0
   eta = eta / 2.
   radius = cylinder_d / 2.
   xkt = lambda / (chp * rho_inf)
-  pi = acos(-1.)
+  pi = acos(-1.d0)
 
 !######for the square cylinder########################################
-  ic = nint((x_length / 2. / dlx) + 1) !X coordinate center of square
-  jc = nint((y_length/ 2. / dly) + 1) !Y coordinate center of square
+  ic = nint((x_length / 2. / dlx) + 1.) !X coordinate center of square
+  jc = nint((y_length/ 2. / dly) + 1.) !Y coordinate center of square
 !   imax=XXX
 !   imin=XXX
 !   jmax=XXX
@@ -563,10 +564,10 @@ subroutine initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,&
 
 !##########CYLINDER DEFINITION#########################################
   	do CONCURRENT(j=1:ny, i=1:nx)
-        if (((i*dlx - x_length/2.)**2 + (j*dly - y_length/2.)**2) .lt. radius**2) then
-           eps(i,j)=1.
+        if (((i*dlx - x_length/2.)**2. + (j*dly - y_length/2.)**2.) .lt. radius**2.) then
+           eps(i,j)=1.d0
         else
-           eps(i,j)=0.
+           eps(i,j)=0.d0
         end if
   	enddo
 !######################################################################
@@ -575,9 +576,9 @@ subroutine initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,&
      do i=1,nx
         uuu(i,j) = uu0
         ! Add small velocity perturbation
-        vvv(i,j) = 0.01 * (sin(4. * pi * i * dlx / x_length) &
+        vvv(i,j) = 0.01d0 * (sin(4. * pi * i * dlx / x_length) &
                    + sin(7. * pi * i * dlx / x_length)) &
-                   * exp(-(j * dly - y_length / 2.) **2)
+                   * exp(-(j * dly - y_length / 2.) **2.)
         tmp(i,j) = temp_inf
         eee(i,j) = chv * tmp(i,j) + 0.5 * (uuu(i,j)*uuu(i,j) + vvv(i,j)*vvv(i,j))
         rho(i,j) = rho_inf
@@ -585,7 +586,7 @@ subroutine initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,&
         rou(i,j) = rho(i,j) * uuu(i,j)
         rov(i,j) = rho(i,j) * vvv(i,j)
         roe(i,j) = rho(i,j) * eee(i,j)
-        scp(i,j) = 1.
+        scp(i,j) = 1.d0
      enddo
   enddo
 
@@ -597,15 +598,15 @@ subroutine param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylind
   implicit none
 
   real(8) :: reynolds,prandtl,rho_inf,c_inf,cylinder_d,chp,gamma,chv,x_length,y_length,uu0,dyn_viscosity,lambda,temp_inf,mach
-
-  reynolds = 200.
-  mach = 0.2
-  prandtl = 0.7
-  rho_inf = 1.
-  c_inf = 1. ! speed of sound at inf
-  cylinder_d = 1.
-  chp = 1. ! heat capacity at const pressure
-  gamma = 1.4
+  
+  reynolds = 200.d0
+  mach = 0.2d0
+  prandtl = 0.7d0
+  rho_inf = 1.d0
+  c_inf = 1.d0 ! speed of sound at inf
+  cylinder_d = 1.d0
+  chp = 1.d0 ! heat capacity at const pressure
+  gamma = 1.4d0
 	
   chv = chp / gamma ! heat capacity at const volume
   ! Dimensions of computational domain
@@ -614,7 +615,7 @@ subroutine param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylind
   uu0 = mach * c_inf ! U infinity
   dyn_viscosity = rho_inf * uu0 * cylinder_d / reynolds
   lambda = dyn_viscosity * chp / prandtl ! thermal conductivity
-  temp_inf = c_inf**2 / (chp* (gamma-1))
+  temp_inf = c_inf**2. / (chp* (gamma-1.))
 	
   return
 end subroutine param

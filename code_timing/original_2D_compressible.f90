@@ -45,7 +45,7 @@ program navierstokes
   !we need to define the time step
   dx=xlx/nx !mesh size in x
   dy=yly/ny !mesh sixe in y
-  CFL=0.025  !CFL number for time step
+  CFL=0.025d0  !CFL number for time step
   dlt=CFL*dlx
   print *,'The time step of the simulation is',dlt
   
@@ -167,7 +167,7 @@ subroutine average(uuu,um,nx,ny)
      um = um + uuu(i,j)
   enddo
   enddo
-  um=um/(real(nxm*ny))
+  um = um / (nxm*ny)
 
   return
 end subroutine average
@@ -401,8 +401,8 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call deryy(uuu,nx,ny,tb7,yly)
   call derix(vvv,nx,ny,tb8,xlx)
   call deriy(tb8,nx,ny,tb9,yly)
-  utt=1./3
-  qtt=4./3
+  utt=1.d0/3
+  qtt=4.d0/3
   do j=1,ny
      do i=1,nx
         tba(i,j)=xmu*(qtt*tb6(i,j)+tb7(i,j)+utt*tb9(i,j))
@@ -452,7 +452,7 @@ subroutine fluxx(uuu,vvv,rho,pre,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   call deriy(vvv,nx,ny,tb2,yly)
   call deriy(uuu,nx,ny,tb3,yly)
   call derix(vvv,nx,ny,tb4,xlx)
-  dmu=2./3*xmu
+  dmu=2.d0/3*xmu
   do j=1,ny
      do i=1,nx
         fre(i,j)=xmu*(uuu(i,j)*tba(i,j)+vvv(i,j)*tbb(i,j))&
@@ -573,24 +573,24 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
 
   call param(xlx,yly,xmu,xba,gma,chp,roi,cci,d,tpi,chv,uu0)
 
-  epsi=0.1
+  epsi=0.1d0
   dlx=xlx/nx
   dly=yly/ny
-  ct3=log(2.)
-  ct4=yly/2.
-  ct5=xlx/2.
-  ct6=(gma-1.)/gma
+  ct3=log(2.d0)
+  ct4=yly/2.d0
+  ct5=xlx/2.d0
+  ct6=(gma-1.d0)/gma
   y=-ct4
-  x=0.
-  eta=0.1
+  x=0.d0
+  eta=0.1d0
   eta=eta/2.
   radius=d/2.
   xkt=xba/(chp*roi)
-  pi=acos(-1.)
+  pi=acos(-1.d0)
 
 !######for the square cylinder########################################
-      ic=nint((xlx/2./dlx)+1) !X coordinate center of square
-      jc=nint((yly/2./dly)+1) !Y coordinate center of square
+      ic=nint((xlx/2./dlx)+1.) !X coordinate center of square
+      jc=nint((yly/2./dly)+1.) !Y coordinate center of square
 !      imax=XXX
 !      imin=XXX
 !      jmax=XXX
@@ -602,10 +602,10 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
 !##########CYLINDER DEFINITION#########################################
   do j=1,ny
      do i=1,nx
-        if (((i*dlx-xlx/2.)**2+(j*dly-yly/2.)**2).lt.radius**2) then
-           eps(i,j)=1.
+        if (((i*dlx-xlx/2.)**2.+(j*dly-yly/2.)**2.).lt.radius**2.) then
+           eps(i,j)=1.d0
         else
-           eps(i,j)=0.
+           eps(i,j)=0.d0
         end if
      enddo
   enddo
@@ -613,9 +613,9 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
   do j=1,ny
      do i=1,nx
         uuu(i,j)=uu0
-        vvv(i,j)=0.01*(sin(4.*pi*i*dlx/xlx)&
+        vvv(i,j)=0.01d0*(sin(4.*pi*i*dlx/xlx)&
              +sin(7.*pi*i*dlx/xlx))*&
-             exp(-(j*dly-yly/2.)**2)
+             exp(-(j*dly-yly/2.)**2.)
         tmp(i,j)=tpi
         eee(i,j)=chv*tmp(i,j)+0.5*(uuu(i,j)*uuu(i,j)+vvv(i,j)*vvv(i,j))
         rho(i,j)=roi
@@ -623,7 +623,7 @@ subroutine initl(uuu,vvv,rho,eee,pre,tmp,rou,rov,roe,nx,ny,&
         rou(i,j)=rho(i,j)*uuu(i,j)
         rov(i,j)=rho(i,j)*vvv(i,j)
         roe(i,j)=rho(i,j)*eee(i,j)
-        scp(i,j)=1.
+        scp(i,j)=1.d0
         x=x+dlx
      enddo
      y=y+dly
@@ -643,14 +643,14 @@ subroutine param(xlx,yly,xmu,xba,gma,chp,roi,cci,d,tpi,chv,uu0)
 
   real(8) :: ren,pdl,roi,cci,d,chp,gma,chv,xlx,yly,uu0,xmu,xba,tpi,mach
 
-  ren=200.
-  mach=0.2
-  pdl=0.7
-  roi=1.
-  cci=1.
-  d=1.
-  chp=1.
-  gma=1.4
+  ren=200.d0
+  mach=0.2d0
+  pdl=0.7d0
+  roi=1.d0
+  cci=1.d0
+  d=1.d0
+  chp=1.d0
+  gma=1.4d0
 	
   chv=chp/gma
   xlx=4.*d
@@ -658,7 +658,7 @@ subroutine param(xlx,yly,xmu,xba,gma,chp,roi,cci,d,tpi,chv,uu0)
   uu0=mach*cci
   xmu=roi*uu0*d/ren
   xba=xmu*chp/pdl
-  tpi=cci**2/(chp*(gma-1))
+  tpi=cci**2./(chp*(gma-1.))
 	
   return
 end subroutine param
