@@ -1,5 +1,3 @@
-from cgi import test
-from readline import write_history_file
 import subprocess
 import os
 from timeit import timeit
@@ -98,21 +96,27 @@ if not original_f90_file or not os.path.exists(original_f90_file):
     print("Warning: Original code not found")
     original_f90_file = None
 
-filename = os.path.join("execution_timings.xlsx")
+cuda_file = os.path.join("CompressibleSolverCUDA", "CompressibleSolverCUDA", "kernel.cu")
+if not cuda_file or not os.path.exists(cuda_file):
+    print("Warning: CUDA code not found")
+    cuda_file = None
 
-workbook, timings_sheet = setup_worksheet(filename)
+
+excel_file = os.path.join("execution_timings.xlsx")
+workbook, timings_sheet = setup_worksheet(excel_file)
 
 compiler_cmds = [
-    # ["gfortran -O3", "gfortran -O3"],
-    # ["ifort -O3", "ifort -O3"],
-    # ["ifort -O3 -parallel", "ifort -O3 -parallel"],
-    # ["ifort -O3 -fopenmp", "ifort -O3 -fopenmp"]
-    # ["gfortran -O3 -fopenmp", "gfortran -O3 -fopenmp"],
-    # ["gfortran -O3 -fopenmp -ftree-parallelize-loops=1", "gfortran -O3 -fopenmp 1 threads"]
+    ["gfortran -O3 -march=native", "gfortran"],
+    ["gfortran -O3 -march=native -fopenacc", "gfortran gpu"],
+    # ["ifort -O3 -xhost", "ifort"],
+    # ["ifort -O3 -xhost -qopenmp", "ifort parallel"],
+    ["nvfortran -fast -O3", "nvidia"],
+    ["nvfortran -fast -O3 -stdpar=multicore", "nvidia parallel"],
+    ["nvfortran -fast -O3 -stdpar=gpu", "nvidia gpu"],
+    ["nvcc -Xptxas -O3", "CUDA"]
 ]
 
 mesh_nx_options = [129, 257, 513, 1025, 2049]
-last_nx_val = mesh_nx_options[-1]
 reps = 5
 
 next_excel_col = timings_sheet.min_column
@@ -136,19 +140,22 @@ if original_f90_file:
     print("Finshed getting correct outputs")
 
 for cmd, option_name in compiler_cmds:
+    if cmd.startswith("nvcc"):
+        if not cuda_file:
+            print(f"CUDA file not found. Skipping compilation with {cmd}")
+            continue
 
-    if cmd.endswith(".bat"):
-        compile_cmd = cmd
+        code_file = cuda_file
     else:
-        compile_cmd = cmd + " -o output.exe " + f90_file
+        code_file = f90_file
 
+    compile_cmd = cmd + " -o output.exe " + code_file
     next_excel_col += 1
 
     for nx_option in mesh_nx_options:
         # Change value of nx in fortran code and add new nx row to spreadsheet
         print(f"\nChanging nx value to {nx_option}")
-        change_nx_value(f90_file, mesh_nx_options, nx_option)
-        last_nx_val = nx_option
+        change_nx_value(code_file, mesh_nx_options, nx_option)
 
         if nx_option == mesh_nx_options[0]:
             save_to_worksheet(timings_sheet, next_excel_col, option_name)
@@ -180,10 +187,10 @@ for cmd, option_name in compiler_cmds:
         save_to_worksheet(timings_sheet, next_excel_col, elapsed_time)
 
         os.remove("output.exe")
-    
-    workbook.save(filename)
+        workbook.save(excel_file)
 
-change_nx_value(f90_file, mesh_nx_options, mesh_nx_options[0])
+    # Change back to original value for next command
+    change_nx_value(code_file, mesh_nx_options, mesh_nx_options[0])
 
-print(f"\nCompleted test run. Saving worksheet to {filename}.")
-workbook.save(filename)
+print(f"\nCompleted test run. Saving worksheet to {excel_file}.")
+workbook.save(excel_file)
