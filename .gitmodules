@@ -1,0 +1,3 @@
+[submodule "code_timing/CompressibleSolverCUDA"]
+	path = code_timing/CompressibleSolverCUDA
+	url = git@github.com:CameronS-D/CompressibleSolverCUDA.git

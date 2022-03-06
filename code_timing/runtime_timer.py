@@ -29,12 +29,17 @@ def save_to_worksheet(worksheet, col, result, row=None):
     worksheet.cell(row=row, column=col).value = result
 
 def change_nx_value(filename, old_vals, new_val):
+    if filename.endswith(".cu"):
+        two_before_nx_line = 12
+    else:
+        two_before_nx_line = 9
+
     # Read in full file
     with open(filename, "r") as f:
         firstlines = ""
         for line_idx, line in enumerate(f):
             firstlines += line
-            if line_idx == 9:
+            if line_idx == two_before_nx_line:
                 break
 
         nx_line = f.readline()
@@ -71,7 +76,7 @@ def is_output_correct(correct_output, test_code_cmd):
         if correct == test:
             continue
         try:
-            if round(float(correct) * 1e6) == round(float(test) * 1e6):
+            if round(float(correct) * 1e5) == round(float(test) * 1e5):
                 continue
         except ValueError:
             # Tried to convert word to float - output must be wrong
@@ -85,7 +90,7 @@ def is_output_correct(correct_output, test_code_cmd):
 
 def get_correct_output(filename):
     # Compile
-    original_code_cmd = "gfortran -O3 -o correct_output.exe " + filename
+    original_code_cmd = "nvfortran -fast -O3 -o correct_output.exe " + filename
     subprocess.run(original_code_cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     # Run output
     proc = subprocess.run("./correct_output.exe", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="UTF-8")
@@ -118,17 +123,17 @@ workbook, timings_sheet = setup_worksheet(excel_file)
 
 compiler_cmds = [
     ["gfortran -O3 -march=native", "gfortran"],
-    ["gfortran -O3 -march=native -fopenacc", "gfortran gpu"],
-    # ["ifort -O3 -xhost", "ifort"],
-    # ["ifort -O3 -xhost -qopenmp", "ifort parallel"],
+    ["gfortran -O3 -march=native -fopenacc -foffload=nvptx-none", "gfortran gpu"],
+    ["ifort -O3 -xhost", "ifort"],
+    ["ifort -O3 -xhost -qopenmp", "ifort parallel"],
     ["nvfortran -fast -O3", "nvidia"],
     ["nvfortran -fast -O3 -stdpar=multicore", "nvidia parallel"],
-    ["nvfortran -fast -O3 -stdpar=gpu", "nvidia gpu"],
-    ["nvcc -Xptxas -O3", "CUDA"]
+    ["nvfortran -fast -O3 -stdpar=gpu -gpu=cc70", "nvidia gpu"],
+    ["nvcc -arch=sm_70 -Xptxas -O3", "CUDA"]
 ]
 
 mesh_nx_options = [129, 257, 513, 1025, 2049]
-reps = 5
+reps = 3
 
 next_excel_col = timings_sheet.min_column
 if timings_sheet.min_column != timings_sheet.max_column:
