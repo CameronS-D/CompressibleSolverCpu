@@ -55,6 +55,8 @@ program navierstokes
   dlt = CFL * dlx
   print *,'The time step of the simulation is', dlt
   
+  !$acc data copyin(uuu, vvv, rho, pressure, tmp, rou, rov, roe, eps, scp) create(tb1, tb2, tb3, tb4, tb5, tb6, tb7, tb8, tb9, tba, tbb, fro, fru, frv, fre, ftp, gro, gru, grv, gre, gtp)
+
   !Computation of the average velocity and temperature at t=0
   call average(uuu, u_mean, nx, ny)
   call average(vvv, v_mean, nx, ny)
@@ -148,6 +150,8 @@ program navierstokes
    write(*,*) n, u_mean, v_mean, t_mean
 
   enddo
+
+  !$acc end data
   !END OF THE TIME LOOP
 
   deallocate(uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv)
@@ -171,9 +175,10 @@ subroutine average(array, mean, nx, ny)
   real(8),dimension(nx,ny) :: array
   real(8) :: mean
   integer :: nx,ny
-
+  !$acc data present(array)
+  !$acc update self(array)
   mean = sum(array) / (nx * ny)
-
+  !$acc end data
   return
 end subroutine average
 
@@ -190,7 +195,8 @@ subroutine derix(phi,nx,ny,phi_deriv,x_length)
 	dlx = x_length / nx
 	udx = 1. / (2. * dlx)
 
-  !$acc data copy(phi), create(phi_deriv)
+  !$acc data present(phi, phi_deriv)
+  
   !$acc parallel loop
 	do j=1,ny
 		phi_deriv(1,j) = udx * (phi(2,j) - phi(nx,j))
@@ -205,6 +211,7 @@ subroutine derix(phi,nx,ny,phi_deriv,x_length)
     enddo
   enddo
   !$acc end parallel loop
+  !$acc end data
 
   return
 end subroutine derix
@@ -223,21 +230,22 @@ subroutine deriy(phi,nx,ny,dfi,y_length)
   dly = y_length / ny
   udy = 1. / (2. * dly)
 
-	!$acc data copy(phi), create(phi_deriv)
+	!$acc data present(phi, dfi)
   !$acc parallel loop
-	do j=2, ny-2
+	do i=1, nx
+		dfi(i,1) = udy * (phi(i,2) - phi(i,ny))
+		dfi(i,ny) = udy * (phi(i,1) - phi(i,ny-1))
+	enddo
+	!$acc end parallel loop
+
+  !$acc parallel loop
+	do j=2, ny-1
 		do i=1, nx
     	dfi(i,j) = udy * (phi(i,j+1) - phi(i,j-1))
 		enddo
 	enddo
 	!$acc end parallel loop
-
-	!$acc parallel loop
-	do i=1, nx
-		dfi(i,1) = udy * (phi(i,2) - phi(i,ny))
-		dfi(i,ny) = udy * (phi(i,1) - phi(i,ny-1))
-	enddo
-	!$acc parallel loop
+  !$acc end data
 
   return
 end subroutine deriy
@@ -255,7 +263,7 @@ subroutine derxx(phi,nx,ny,dfi,x_length)
 
   dlx = x_length / nx
   udx = 1. / (dlx*dlx)
-	!$acc data copy(phi), create(dfi)
+	!$acc data present(phi, dfi)
   !$acc parallel loop
   do j=1, ny
      dfi(1,j) = udx * (phi(2,j) - (phi(1,j)+phi(1,j)) + phi(nx,j))
@@ -270,6 +278,7 @@ subroutine derxx(phi,nx,ny,dfi,x_length)
 		enddo
   enddo
   !$acc end parallel loop
+  !$acc end data
 
   return
 end subroutine derxx
@@ -288,7 +297,7 @@ subroutine deryy(phi,nx,ny,dfi,y_length)
   dly = y_length / ny
   udy = 1. / (dly*dly)
 
-	!$acc data copy(phi), create(dfi)
+	!$acc data present(phi, dfi)
   !$acc parallel loop
 	do j=2, ny-1
 		do i=1, nx
@@ -303,7 +312,8 @@ subroutine deryy(phi,nx,ny,dfi,y_length)
 		dfi(i,ny) = udy * (phi(i,1) - (phi(i,ny)+phi(i,ny)) + phi(i,ny-1))
 	enddo
 	!$acc end parallel loop
-	
+	!$acc end data
+
   return
 end subroutine deryy
 
@@ -398,6 +408,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   real(8),dimension(nx,ny) :: tb8,tb9,tba,tbb,fro,fru,frv,fre,eps,ftp,scp
   real(8) :: utt,qtt,dyn_viscosity,eta,dmu,x_length,y_length,lambda,xkt
   integer :: i,j,nx,ny
+  !$acc data present(uuu, vvv, rho, pressure, tmp, rou, rov, roe, tb1, tb2, tb3, tb4, tb5, tb6, tb7, tb8, tb9, tba, tbb, fro, fru, frv, fre, eps, ftp, scp)
 
   call derix(rou,nx,ny,tb1,x_length)
   call deriy(rov,nx,ny,tb2,y_length)
@@ -463,7 +474,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
 
 	!$acc parallel loop
 	do j=1, ny
-		do j=1, nx
+		do i=1, nx
 			ftp(i,j)=-uuu(i,j)*tb1(i,j)-vvv(i,j)*tb2(i,j)&
 						+ xkt*(tb3(i,j)+tb4(i,j))&
 						- (eps(i,j)/eta)*scp(i,j)
@@ -509,6 +520,7 @@ subroutine fluxx(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
   enddo
 	!$acc end parallel loop
 	
+  !$acc end data
   return
 end subroutine fluxx
 !#######################################################################
@@ -563,6 +575,7 @@ subroutine adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
 	ct1 = 1.5 * dlt
 	ct2 = 0.5 * dlt
 
+  !$acc data present(rho, rou, rov, roe, fro, gro, fru, gru, frv, grv, fre, gre, ftp, gtp, scp)
 	!$acc parallel loop
 	do j=1, ny
 		do i=1, nx
@@ -579,6 +592,7 @@ subroutine adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
 		enddo
 	enddo
 	!$acc end parallel loop
+  !$acc end data
 
   return
 end subroutine adams
@@ -689,6 +703,7 @@ subroutine etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
 	ct7=gamma-1.
 	ct8=gamma/(gamma-1.)
 
+  !$acc data present(uuu, vvv, rho, pressure, tmp, rou, rov, roe)
 	!$acc parallel loop
 	do j=1, ny
 		do i=1, nx
@@ -700,6 +715,7 @@ subroutine etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
 		enddo
 	enddo
 	!$acc end parallel loop
-	
+  !$acc end data
+
   return
 end subroutine etatt
