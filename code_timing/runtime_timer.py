@@ -127,14 +127,16 @@ compiler_cmds = [
     # ["gfortran -O3 -march=native -fopenacc -foffload=nvptx-none", "gfortran gpu"],
     # ["ifort -O3 -xhost", "ifort"],
     # ["ifort -O3 -xhost -qopenmp", "ifort parallel"],
-    # ["nvfortran -fast -O3", "nvidia"],
+    ["nvfortran -fast -O3", "nvidia serial"],
     # ["nvfortran -fast -O3 -stdpar=multicore", "nvidia parallel"],
     # ["nvfortran -fast -O3 -stdpar=gpu -gpu=cc70", "nvidia gpu"],
-    # ["nvcc -arch=sm_70 -Xptxas -O3", "CUDA"]
+    ["nvcc -arch=sm_61 -Xptxas -O3", "CUDA"],
     ["nvfortran -fast -O3 -acc=gpu -gpu=cc61,cuda11.6", "openacc"]
 ]
+# PC Settings: -arch=sm_61; -gpu=cc61,cuda11.6
+# Remote Settings: -arch=sm_70; -gpu=cc70,cuda11.5
 
-mesh_nx_options = [129, 257, 513, 1025, 2049]
+mesh_nx_options = [129, 257, 513, 1025, 2049, 4096]
 reps = 3
 
 # Add current date/time and seperators to excel sheet

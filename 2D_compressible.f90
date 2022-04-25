@@ -174,11 +174,24 @@ subroutine average(array, mean, nx, ny)
 !
   real(8),dimension(nx,ny) :: array
   real(8) :: mean
-  integer :: nx,ny
+  integer :: nx, ny, i, j
+
+  mean = 0.d0
+
   !$acc data present(array)
-  !$acc update self(array)
-  mean = sum(array) / (nx * ny)
+  !$acc parallel loop reduction(+:mean)
+
+  do j = 1, ny
+    do i = 1, nx
+      mean = mean + array(i, j)
+    enddo
+  enddo
+
+  !$acc end parallel loop
   !$acc end data
+
+  mean = mean / (nx * ny)
+  
   return
 end subroutine average
 
