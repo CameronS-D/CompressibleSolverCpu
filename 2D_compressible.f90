@@ -8,32 +8,31 @@ program navierstokes
 !
   implicit none   !-->all the variables MUST be declared
 
-  integer,parameter :: nx=4097,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
+  integer,parameter :: nx=129,ny=nx,nt=100,ns=3,nf=3,mx=nf*nx,my=nf*ny
   !size of the computational domain (nx x ny) 
   !size of the exchanger (mx x my)
   !number of time step for the simulation
 
   !Declaration of variables
-  real(8), allocatable, dimension(:, :) :: uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv
-  real(8), allocatable, dimension(:, :) :: roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9
-  real(8), allocatable, dimension(:, :) :: tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp
+  real(8), allocatable, dimension(:, :, :) :: prev_rho_dots, rho_dots, rho_vals, dummy
+  real(8), allocatable, dimension(:, :) :: uuu,vvv,eee,pressure,tmp,wz,tuu,tvv,eps, tf, coef
   real(8), allocatable, dimension(:) :: xx, yy
-  real(8), allocatable, dimension(:, :) :: tf, coef
-  integer :: i,j,itemp,k,n,ni,nj,imodulo
+  integer :: i,j,itemp,n,ni,nj,imodulo
   real(8) :: x_length,y_length,CFL,dlx,dx,dyn_viscosity,xkt
   real(8) :: lambda,gamma,chp,eta,dlt,u_mean,v_mean,t_mean,x,y,dy
-!**************************************************
   character(len=20) nfichier
-!*******************************************
+
+  ! See compressible equations for why these are important
+  ! rho_vals(:, :, 1) = rho
+  ! rho_vals(:, :, 2) = rho * u
+  ! rho_vals(:, :, 3) = rho * v
+  ! rho_vals(:, :, 4) = rho * e
+  ! rho_vals(:, :, 5) = scp? Don't know what this represents
 
   !Allocate array memory
-  allocate(uuu(nx, ny), vvv(nx, ny), rho(nx, ny), eee(nx, ny), pressure(nx, ny), tmp(nx, ny), &
-           rou(nx, ny), rov(nx, ny), wz(nx, ny), tuu(nx, ny), tvv(nx, ny))
-  allocate(roe(nx, ny), tb1(nx, ny), tb2(nx, ny), tb3(nx, ny), tb4(nx, ny), tb5(nx, ny), &
-           tb6(nx, ny), tb7(nx, ny), tb8(nx, ny), tb9(nx, ny))
-  allocate(tba(nx, ny), tbb(nx, ny), fro(nx, ny), fru(nx, ny), frv(nx, ny), fre(nx, ny), &
-           gro(nx, ny), gru(nx, ny), grv(nx, ny), gre(nx, ny), eps(nx, ny), ftp(nx, ny), &
-           gtp(nx, ny), scp(nx, ny))
+  allocate(prev_rho_dots(nx, ny, 5), rho_dots(nx, ny, 5), rho_vals(nx, ny, 5), dummy(nx, ny, 11))
+  allocate(uuu(nx, ny), vvv(nx, ny), eee(nx, ny), pressure(nx, ny), tmp(nx, ny))
+  allocate(eps(nx, ny), wz(nx, ny), tuu(nx, ny), tvv(nx, ny))
   allocate(xx(mx), yy(my), tf(mx, my), coef(2, ns))
 
   !Name of the file for visualisation:
@@ -45,8 +44,8 @@ program navierstokes
   itemp=1
 
   ! Subroutine for the initialisation of the variables 
-  call initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,x_length,y_length, &
-       dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,scp,xkt)
+  call initl(uuu,vvv,eee,pressure,tmp, rho_vals(:, :, 1), rho_vals(:, :, 2), rho_vals(:, :, 3), rho_vals(:, :, 4), &
+  rho_vals(:, :, 5), nx,ny, x_length,y_length, dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,xkt)
 
   !we need to define the time step
   dx = x_length / nx !mesh size in x
@@ -55,43 +54,24 @@ program navierstokes
   dlt = CFL * dlx
   print *,'The time step of the simulation is', dlt
   
-  !$acc data copyin(uuu, vvv, rho, pressure, tmp, rou, rov, roe, eps, scp) create(tb1, tb2, tb3, tb4, tb5, tb6, tb7, tb8, tb9, tba, tbb, fro, fru, frv, fre, ftp, gro, gru, grv, gre, gtp)
+  !$acc data copyin(uuu, vvv, pressure, tmp, eps, rho_vals) create(rho_dots, prev_rho_dots, dummy)
 
   !Computation of the average velocity and temperature at t=0
   call average(uuu, u_mean, nx, ny)
   call average(vvv, v_mean, nx, ny)
-  call average(scp, t_mean, nx, ny)
+  call average(rho_vals(:, :, 5), t_mean, nx, ny)
   write(*,*) 'Average values at t=0', u_mean, v_mean, t_mean
 
 !BEGINNING OF TIME LOOP
   do n=1,nt
    if (itemp.eq.1) then   !TEMPORAL SCHEME AB2
       
-      call fluxx(uuu,vvv,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4, &
-            tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps, &
-            eta,ftp,scp,xkt)
+      call fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,dyn_viscosity,lambda,eps,eta,xkt, dummy)
 
-      call adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
-            fre,gre,ftp,gtp,scp,nx,ny,dlt)
+      call adams(rho_vals, rho_dots, prev_rho_dots, nx, ny, dlt)
       
-      call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
+      call etatt(uuu,vvv,pressure,tmp,rho_vals,nx,ny,gamma,chp)
         
-   endif
-        
-   if (itemp.eq.2) then !TEMPORAL SCHEME RK3
-
-      !loop for sub-time steps
-      do k=1,ns
-         call fluxx(uuu,vvv,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,tb4,&
-               tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,eps,&
-               eta,ftp,scp,xkt)
-      
-         call rkutta(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
-               fre,gre,ftp,gtp,nx,ny,ns,dlt,coef,scp,k)
-   
-         call etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
-         
-      enddo
    endif
      
    !loop for the snapshots, to be save every imodulo
@@ -146,7 +126,7 @@ program navierstokes
    !Computation and print of average values
    call average(uuu,u_mean,nx,ny)
    call average(vvv,v_mean,nx,ny)
-   call average(scp,t_mean,nx,ny)
+   call average(rho_vals(:, :, 5), t_mean,nx,ny)
    write(*,*) n, u_mean, v_mean, t_mean
 
   enddo
@@ -154,9 +134,9 @@ program navierstokes
   !$acc end data
   !END OF THE TIME LOOP
 
-  deallocate(uuu,vvv,rho,eee,pressure,tmp,rou,rov,wz,tuu,tvv)
-  deallocate(roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7,tb8,tb9)
-  deallocate(tba,tbb,fro,fru,frv,fre,gro,gru,grv,gre,eps,ftp,gtp,scp)
+  deallocate(uuu,vvv,eee,pressure,tmp,wz,tuu,tvv)
+  deallocate(dummy,eps)
+  deallocate(rho_vals, rho_dots, prev_rho_dots)
   deallocate(xx, yy, tf, coef)
 
 end program navierstokes
@@ -323,70 +303,70 @@ end subroutine deryy
 
 !#######################################################################
 !
-subroutine fluxx(uuu,vvv,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
-     tb4,tb5,tb6,tb7,tb8,tb9,tba,tbb,fro,fru,frv,fre,x_length,y_length,dyn_viscosity,lambda,&
-     eps,eta,ftp,scp,xkt)
+subroutine fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,dyn_viscosity,lambda,eps, &
+  eta,xkt, dummy)
 !
 !#######################################################################
 
   implicit none
 
-  real(8),dimension(nx,ny) :: uuu,vvv,pressure,tmp,rou,rov,roe,tb1,tb2,tb3,tb4,tb5,tb6,tb7
-  real(8),dimension(nx,ny) :: tb8,tb9,tba,tbb,fro,fru,frv,fre,eps,ftp,scp
+  real(8),dimension(nx,ny) :: uuu,vvv,pressure,tmp,eps
+  real(8), dimension(nx, ny, 5) :: rho_dots, rho_vals
+  real(8), dimension(nx, ny, 11) :: dummy
   real(8) :: utt,qtt,dyn_viscosity,eta,dmu,x_length,y_length,lambda,xkt
   integer :: i,j,nx,ny
-  !$acc data present(uuu, vvv, pressure, tmp, rou, rov, roe, tb1, tb2, tb3, tb4, tb5, tb6, tb7, tb8, tb9, tba, tbb, fro, fru, frv, fre, eps, ftp, scp)
+  !$acc data present(uuu, vvv, pressure, tmp, dummy, eps, rho_vals, rho_dots)
 
-  call derix(rou,nx,ny,tb1,x_length)
-  call deriy(rov,nx,ny,tb2,y_length)
+  call derix(rho_vals(:, :, 2),nx,ny,dummy(:, :, 1),x_length)
+  call deriy(rho_vals(:, :, 3),nx,ny,dummy(:, :, 2),y_length)
 
   !$acc parallel loop
   do j=1, ny
     do i=1, nx
-      fro(i,j)=-tb1(i,j)-tb2(i,j)
+      rho_dots(i,j, 1) = -dummy(i,j, 1) - dummy(i,j, 2)
 
-      tb1(i,j)=rou(i,j)*uuu(i,j)
-      tb2(i,j)=rou(i,j)*vvv(i,j)
+      dummy(i,j, 1) = rho_vals(i, j, 2) * uuu(i,j)
+      dummy(i,j, 2) = rho_vals(i, j, 2) * vvv(i,j)
     enddo
   enddo
   !$acc end parallel loop
   
-  call derix(pressure,nx,ny,tb3,x_length)
-  call derix(tb1,nx,ny,tb4,x_length)
-  call deriy(tb2,nx,ny,tb5,y_length)
-  call derxx(uuu,nx,ny,tb6,x_length)
-  call deryy(uuu,nx,ny,tb7,y_length)
-  call derix(vvv,nx,ny,tb8,x_length)
-  call deriy(tb8,nx,ny,tb9,y_length)
+  call derix(pressure,nx,ny,dummy(:, :, 3),x_length)
+  call derix(dummy(:, :, 1),nx,ny,dummy(:, :, 4),x_length)
+  call deriy(dummy(:, :, 2),nx,ny,dummy(:, :, 5),y_length)
+  call derxx(uuu,nx,ny,dummy(:, :, 6),x_length)
+  call deryy(uuu,nx,ny,dummy(:, :, 7),y_length)
+  call derix(vvv,nx,ny,dummy(:, :, 8),x_length)
+  call deriy(dummy(:, :, 8),nx,ny,dummy(:, :, 9),y_length)
 
   utt = 1.d0 / 3
   qtt = 4.d0 / 3
   !$acc parallel loop
   do j=1, ny
     do i=1, nx
-      tba(i,j) = dyn_viscosity * (qtt * tb6(i,j) + tb7(i,j) + utt * tb9(i,j))
-      fru(i,j)= -tb3(i,j) - tb4(i,j) - tb5(i,j) + tba(i,j) - (eps(i,j) / eta) * uuu(i,j)
+      dummy(i,j, 10) = dyn_viscosity * (qtt * dummy(i, j, 6) + dummy(i, j, 7) + utt * dummy(i, j, 9))
+      rho_dots(i, j, 2) = -dummy(i, j, 3) - dummy(i, j, 4) - dummy(i, j, 5) + dummy(i, j, 10) - (eps(i,j) / eta) * uuu(i,j)
 
-      tb1(i,j)=rou(i,j)*vvv(i,j)
-      tb2(i,j)=rov(i,j)*vvv(i,j)
+      dummy(i,j, 1) = rho_vals(i, j, 2) * vvv(i,j)
+      dummy(i,j, 2) = rho_vals(i, j, 3) * vvv(i,j)
     enddo
   enddo
   !$acc end parallel loop
 
-  call deriy(pressure,nx,ny,tb3,y_length)
-  call derix(tb1,nx,ny,tb4,x_length)
-  call deriy(tb2,nx,ny,tb5,y_length)
-  call derxx(vvv,nx,ny,tb6,x_length)
-  call deryy(vvv,nx,ny,tb7,y_length)
-  call derix(uuu,nx,ny,tb8,x_length)
-  call deriy(tb8,nx,ny,tb9,y_length)
+  call deriy(pressure,nx,ny,dummy(:, :, 3),y_length)
+  call derix(dummy(:, :, 1),nx,ny,dummy(:, :, 4),x_length)
+  call deriy(dummy(:, :, 2),nx,ny,dummy(:, :, 5),y_length)
+  call derxx(vvv,nx,ny,dummy(:, :, 6),x_length)
+  call deryy(vvv,nx,ny,dummy(:, :, 7),y_length)
+  call derix(uuu,nx,ny,dummy(:, :, 8),x_length)
+  call deriy(dummy(:, :, 8),nx,ny,dummy(:, :, 9),y_length)
 
   !$acc parallel loop
   do j=1, ny
     do i=1, nx
-      tbb(i,j)=dyn_viscosity*(tb6(i,j)+qtt*tb7(i,j)+utt*tb9(i,j))
-      frv(i,j)=-tb3(i,j)-tb4(i,j)-tb5(i,j)+tbb(i,j)&
-        -(eps(i,j)/eta)*vvv(i,j)
+      dummy(i, j, 11) = dyn_viscosity * (dummy(i, j, 6) + qtt * dummy(i, j, 7) + utt * dummy(i, j, 9))
+      rho_dots(i, j, 3) = - dummy(i, j, 3) - dummy(i, j, 4) - dummy(i, j, 5) + dummy(i, j, 11)&
+        - (eps(i,j) / eta) * vvv(i,j)
     enddo
   enddo
   !$acc end parallel loop
@@ -394,55 +374,56 @@ subroutine fluxx(uuu,vvv,pressure,tmp,rou,rov,roe,nx,ny,tb1,tb2,tb3,&
 !
 !Equation for the tempature
 !
-  call derix(scp,nx,ny,tb1,x_length)
-  call deriy(scp,nx,ny,tb2,y_length)
-  call derxx(scp,nx,ny,tb3,x_length)
-  call deryy(scp,nx,ny,tb4,y_length)
+  call derix(rho_vals(:, :, 5),nx,ny,dummy(:, :, 1),x_length)
+  call deriy(rho_vals(:, :, 5),nx,ny,dummy(:, :, 2),y_length)
+  call derxx(rho_vals(:, :, 5),nx,ny,dummy(:, :, 3),x_length)
+  call deryy(rho_vals(:, :, 5),nx,ny,dummy(:, :, 4),y_length)
 
   !$acc parallel loop
   do j=1, ny
     do i=1, nx
-      ftp(i,j)=-uuu(i,j)*tb1(i,j)-vvv(i,j)*tb2(i,j)&
-            + xkt*(tb3(i,j)+tb4(i,j))&
-            - (eps(i,j)/eta)*scp(i,j)
+      rho_dots(i, j, 5)=-uuu(i,j)*dummy(i, j, 1)-vvv(i,j)*dummy(i, j, 2)&
+            + xkt*(dummy(i, j, 3)+dummy(i, j, 4))&
+            - (eps(i,j)/eta)*rho_vals(i, j, 5)
     enddo
   enddo
   !$acc end parallel loop
 
-  call derix(uuu,nx,ny,tb1,x_length)
-  call deriy(vvv,nx,ny,tb2,y_length)
-  call deriy(uuu,nx,ny,tb3,y_length)
-  call derix(vvv,nx,ny,tb4,x_length)
+  call derix(uuu,nx,ny,dummy(:, :, 1),x_length)
+  call deriy(vvv,nx,ny,dummy(:, :, 2),y_length)
+  call deriy(uuu,nx,ny,dummy(:, :, 3),y_length)
+  call derix(vvv,nx,ny,dummy(:, :, 4),x_length)
 
   dmu = 2.d0 / 3 * dyn_viscosity
 
   !$acc parallel loop
   do j=1, ny
     do i=1, nx
-      fre(i,j)=dyn_viscosity*(uuu(i,j)*tba(i,j)+vvv(i,j)*tbb(i,j))&
-            +(dyn_viscosity+dyn_viscosity)*(tb1(i,j)*tb1(i,j)+tb2(i,j)*tb2(i,j))&
-            -dmu*(tb1(i,j)+tb2(i,j))*(tb1(i,j)+tb2(i,j))&
-            +dyn_viscosity*(tb3(i,j)+tb4(i,j))*(tb3(i,j)+tb4(i,j))
+      rho_dots(i, j, 4)=dyn_viscosity*(uuu(i,j)*dummy(i, j, 10)+vvv(i,j)*dummy(i, j, 11))&
+            +(dyn_viscosity+dyn_viscosity)*(dummy(i,j,1)*dummy(i,j,1)+dummy(i,j,2)*dummy(i,j,2))&
+            -dmu*(dummy(i,j,1)+dummy(i,j,2))*(dummy(i,j,1)+dummy(i,j,2))&
+            +dyn_viscosity*(dummy(i,j,3)+dummy(i,j,4))*(dummy(i,j,3)+dummy(i,j,4))
 
-      tb1(i,j)=roe(i,j)*uuu(i,j)
-      tb2(i,j)=pressure(i,j)*uuu(i,j) 
-      tb3(i,j)=roe(i,j)*vvv(i,j)
-      tb4(i,j)=pressure(i,j)*vvv(i,j)
+      dummy(i,j,1) = rho_vals(i, j, 4) * uuu(i,j)
+      dummy(i,j,2) = pressure(i,j) * uuu(i,j) 
+      dummy(i,j,3) = rho_vals(i, j, 4) * vvv(i,j)
+      dummy(i,j,4) = pressure(i,j) * vvv(i,j)
     enddo
   enddo
   !$acc end parallel loop
 
-  call derix(tb1,nx,ny,tb5,x_length)
-  call derix(tb2,nx,ny,tb6,x_length)
-  call deriy(tb3,nx,ny,tb7,y_length)
-  call deriy(tb4,nx,ny,tb8,y_length)
-  call derxx(tmp,nx,ny,tb9,x_length)
-  call deryy(tmp,nx,ny,tba,y_length)
+  call derix(dummy(:, :, 1),nx,ny,dummy(:, :, 5),x_length)
+  call derix(dummy(:, :, 2),nx,ny,dummy(:, :, 6),x_length)
+  call deriy(dummy(:, :, 3),nx,ny,dummy(:, :, 7),y_length)
+  call deriy(dummy(:, :, 4),nx,ny,dummy(:, :, 8),y_length)
+  call derxx(tmp,nx,ny,dummy(:, :, 9),x_length)
+  call deryy(tmp,nx,ny,dummy(:, :, 10),y_length)
   
   !$acc parallel loop
   do j=1, ny
     do i=1, nx
-      fre(i,j)=fre(i,j)-tb5(i,j)-tb6(i,j)-tb7(i,j)-tb8(i,j)+lambda*(tb9(i,j)+tba(i,j))
+      rho_dots(i,j,4) = rho_dots(i,j,4) - dummy(i,j,5) - dummy(i,j,6) - dummy(i,j,7) - dummy(i,j,8) &
+      + lambda * (dummy(i,j,9) + dummy(i,j,10))
     enddo
   enddo
   !$acc end parallel loop
@@ -454,38 +435,25 @@ end subroutine fluxx
 
 !###########################################################
 !
-subroutine adams(rho,rou,rov,roe,fro,gro,fru,gru,frv,grv,&
-     fre,gre,ftp,gtp,scp,nx,ny,dlt)
+subroutine adams(integrals, derivs, prev_derivs, nx, ny, dlt)
 !
 !###########################################################
 
   implicit none
 
-  real(8),dimension(nx,ny) :: rho,rou,rov,roe,fro,gro,fru,gru,frv
-  real(8),dimension(nx,ny) :: grv,fre,gre,ftp,gtp,scp
+  real(8), dimension(nx, ny, 5) :: integrals, derivs, prev_derivs
   real(8) :: dlt,ct1,ct2
-  integer :: nx,ny,i,j
+  integer :: nx,ny
           
   ct1 = 1.5 * dlt
   ct2 = 0.5 * dlt
 
-  !$acc data present(rho, rou, rov, roe, fro, gro, fru, gru, frv, grv, fre, gre, ftp, gtp, scp)
-  !$acc parallel loop
-  do j=1, ny
-    do i=1, nx
-      rho(i,j)=rho(i,j)+ct1*fro(i,j)-ct2*gro(i,j)
-      gro(i,j)=fro(i,j)
-      rou(i,j)=rou(i,j)+ct1*fru(i,j)-ct2*gru(i,j)
-      gru(i,j)=fru(i,j)
-      rov(i,j)=rov(i,j)+ct1*frv(i,j)-ct2*grv(i,j)
-      grv(i,j)=frv(i,j)
-      roe(i,j)=roe(i,j)+ct1*fre(i,j)-ct2*gre(i,j)
-      gre(i,j)=fre(i,j)
-      scp(i,j)=scp(i,j)+ct1*ftp(i,j)-ct2*gtp(i,j)
-      gtp(i,j)=ftp(i,j)
-    enddo
-  enddo
-  !$acc end parallel loop
+  !$acc data present(integrals, derivs, prev_derivs)
+
+  !$acc kernels
+  integrals = integrals + ct1 * derivs - ct2 * prev_derivs
+  prev_derivs = derivs
+  !$acc end kernels
   !$acc end data
 
   return
@@ -494,8 +462,8 @@ end subroutine adams
 
 !###########################################################
 !
-subroutine initl(uuu,vvv,rho,eee,pressure,tmp,rou,rov,roe,nx,ny,&
-     x_length,y_length,dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,scp,xkt)
+subroutine initl(uuu,vvv,eee,pressure,tmp,rho,rou,rov,roe,scp,nx,ny,&
+     x_length,y_length,dyn_viscosity,lambda,gamma,chp,dlx,eta,eps,xkt)
 !
 !###########################################################
 
@@ -577,25 +545,26 @@ subroutine param(x_length,y_length,dyn_viscosity,lambda,gamma,chp,rho_inf,cylind
   return
 end subroutine param
 
-subroutine etatt(uuu,vvv,rho,pressure,tmp,rou,rov,roe,nx,ny,gamma,chp)
+subroutine etatt(uuu,vvv,pressure,tmp,rho_vals,nx,ny,gamma,chp)
 
   implicit none
 
-  real(8),dimension(nx,ny) ::  uuu,vvv,rho,pressure,tmp,rou,rov,roe
+  real(8),dimension(nx,ny) ::  uuu,vvv,pressure,tmp
+  real(8), dimension(nx, ny, 5) :: rho_vals
   real(8) :: ct7,gamma,ct8,chp
   integer :: i,j,nx,ny
   
   ct7=gamma-1.
   ct8=gamma/(gamma-1.)
 
-  !$acc data present(uuu, vvv, rho, pressure, tmp, rou, rov, roe)
+  !$acc data present(uuu, vvv, pressure, tmp, rho_vals)
   !$acc parallel loop
   do j=1, ny
     do i=1, nx
-      uuu(i,j) = rou(i,j) / rho(i,j)
-      vvv(i,j) = rov(i,j) / rho(i,j)
-      pressure(i,j) = ct7 * (roe(i,j) - 0.5 * (rou(i,j) * uuu(i,j) + rov(i,j) * vvv(i,j)))
-      tmp(i,j) = ct8 * pressure(i,j) / (rho(i,j) * chp)
+      uuu(i,j) = rho_vals(i, j, 2) / rho_vals(i, j, 1)
+      vvv(i,j) = rho_vals(i, j, 3) / rho_vals(i, j, 1)
+      pressure(i,j) = ct7 * (rho_vals(i, j, 4) - 0.5 * (rho_vals(i, j, 2) * uuu(i,j) + rho_vals(i, j, 3) * vvv(i,j)))
+      tmp(i,j) = ct8 * pressure(i,j) / (rho_vals(i, j, 1) * chp)
     enddo
   enddo
   !$acc end parallel loop

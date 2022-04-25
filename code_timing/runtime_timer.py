@@ -136,7 +136,7 @@ compiler_cmds = [
 # PC Settings: -arch=sm_61; -gpu=cc61,cuda11.6
 # Remote Settings: -arch=sm_70; -gpu=cc70,cuda11.5
 
-mesh_nx_options = [129, 257, 513, 1025, 2049, 4096]
+mesh_nx_options = [129, 257, 513, 1025, 2049, 4097]
 reps = 3
 
 # Add current date/time and seperators to excel sheet
