@@ -226,7 +226,7 @@ subroutine deriy(phi,nx,ny,dfi,y_length)
   enddo
   !$acc end parallel loop
 
-  !$acc parallel loop
+  !$acc parallel loop collapse (2)
   do j=2, ny-1
     do i=1, nx
       dfi(i,j) = udy * (phi(i,j+1) - phi(i,j-1))
@@ -282,7 +282,7 @@ subroutine deryy(phi,nx,ny,dfi,y_length)
   udy = 1. / (dly*dly)
 
   !$acc data present(phi, dfi)
-  !$acc parallel loop
+  !$acc parallel loop collapse (2)
   do j=2, ny-1
     do i=1, nx
       dfi(i,j) = udy * (phi(i,j+1) - 2 * phi(i,j) + phi(i,j-1))
@@ -320,7 +320,7 @@ subroutine fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,
   call derix(rho_vals(:, :, 2),nx,ny,dummy(:, :, 1),x_length)
   call deriy(rho_vals(:, :, 3),nx,ny,dummy(:, :, 2),y_length)
 
-  !$acc parallel loop
+  !$acc parallel loop collapse(2)
   do j=1, ny
     do i=1, nx
       rho_dots(i,j, 1) = -dummy(i,j, 1) - dummy(i,j, 2)
@@ -341,7 +341,7 @@ subroutine fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,
 
   utt = 1.d0 / 3
   qtt = 4.d0 / 3
-  !$acc parallel loop
+  !$acc parallel loop collapse(2)
   do j=1, ny
     do i=1, nx
       dummy(i,j, 10) = dyn_viscosity * (qtt * dummy(i, j, 6) + dummy(i, j, 7) + utt * dummy(i, j, 9))
@@ -361,7 +361,7 @@ subroutine fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,
   call derix(uuu,nx,ny,dummy(:, :, 8),x_length)
   call deriy(dummy(:, :, 8),nx,ny,dummy(:, :, 9),y_length)
 
-  !$acc parallel loop
+  !$acc parallel loop collapse(2)
   do j=1, ny
     do i=1, nx
       dummy(i, j, 11) = dyn_viscosity * (dummy(i, j, 6) + qtt * dummy(i, j, 7) + utt * dummy(i, j, 9))
@@ -379,7 +379,7 @@ subroutine fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,
   call derxx(rho_vals(:, :, 5),nx,ny,dummy(:, :, 3),x_length)
   call deryy(rho_vals(:, :, 5),nx,ny,dummy(:, :, 4),y_length)
 
-  !$acc parallel loop
+  !$acc parallel loop collapse(2)
   do j=1, ny
     do i=1, nx
       rho_dots(i, j, 5)=-uuu(i,j)*dummy(i, j, 1)-vvv(i,j)*dummy(i, j, 2)&
@@ -396,7 +396,7 @@ subroutine fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,
 
   dmu = 2.d0 / 3 * dyn_viscosity
 
-  !$acc parallel loop
+  !$acc parallel loop collapse(2)
   do j=1, ny
     do i=1, nx
       rho_dots(i, j, 4)=dyn_viscosity*(uuu(i,j)*dummy(i, j, 10)+vvv(i,j)*dummy(i, j, 11))&
@@ -419,7 +419,7 @@ subroutine fluxx(uuu,vvv,pressure,tmp,rho_vals,nx,ny,rho_dots,x_length,y_length,
   call derxx(tmp,nx,ny,dummy(:, :, 9),x_length)
   call deryy(tmp,nx,ny,dummy(:, :, 10),y_length)
   
-  !$acc parallel loop
+  !$acc parallel loop collapse(2)
   do j=1, ny
     do i=1, nx
       rho_dots(i,j,4) = rho_dots(i,j,4) - dummy(i,j,5) - dummy(i,j,6) - dummy(i,j,7) - dummy(i,j,8) &
@@ -558,7 +558,7 @@ subroutine etatt(uuu,vvv,pressure,tmp,rho_vals,nx,ny,gamma,chp)
   ct8=gamma/(gamma-1.)
 
   !$acc data present(uuu, vvv, pressure, tmp, rho_vals)
-  !$acc parallel loop
+  !$acc parallel loop collapse (2)
   do j=1, ny
     do i=1, nx
       uuu(i,j) = rho_vals(i, j, 2) / rho_vals(i, j, 1)
