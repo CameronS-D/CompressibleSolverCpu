@@ -31,7 +31,7 @@ def save_to_worksheet(worksheet, col, result, row=None):
 
 def change_nx_value(filename, old_vals, new_val):
     if filename.endswith(".cu"):
-        two_before_nx_line = 12
+        two_before_nx_line = 14
     else:
         two_before_nx_line = 9
 
@@ -134,7 +134,7 @@ compiler_cmds = [
     ["nvfortran -fast -O3 -acc=gpu -gpu=cc61,cuda11.6", "openacc"]
 ]
 # PC Settings: -arch=sm_61; -gpu=cc61,cuda11.6
-# Remote Settings: -arch=sm_70; -gpu=cc70,cuda11.5
+# Remote Settings: -arch=sm_70; -gpu=cc70,cuda11.6
 
 mesh_nx_options = [129, 257, 513, 1025, 2049, 4097]
 reps = 3
