@@ -42,6 +42,8 @@ program navierstokes
   ! AB2 temporal scheme itemp=1
   ! RK3 temporal scheme itemp=2
   itemp=1
+  
+  !$acc data create(uuu, vvv, pressure, tmp, eps, rho_vals, rho_dots, prev_rho_dots, dummy, eee)
 
   ! Subroutine for the initialisation of the variables 
   call initl(uuu,vvv,eee,pressure,tmp, rho_vals(:, :, 1), rho_vals(:, :, 2), rho_vals(:, :, 3), rho_vals(:, :, 4), &
@@ -54,7 +56,7 @@ program navierstokes
   dlt = CFL * dlx
   print *,'The time step of the simulation is', dlt
   
-  !$acc data copyin(uuu, vvv, pressure, tmp, eps, rho_vals) create(rho_dots, prev_rho_dots, dummy)
+  
 
   !Computation of the average velocity and temperature at t=0
   call average(uuu, u_mean, nx, ny)
@@ -485,7 +487,10 @@ subroutine initl(uuu,vvv,eee,pressure,tmp,rho,rou,rov,roe,scp,nx,ny,&
   xkt = lambda / (chp * rho_inf)
   pi = acos(-1.d0)
 
+  !$acc data present(uuu, vvv, pressure, tmp, eps, eee, rho, rou, rov, roe, scp)
+
 !##########CYLINDER DEFINITION#########################################
+  !$acc parallel loop collapse(2)
   do j=1, ny
     do i=1, nx
       if (((i*dlx - x_length/2.)**2. + (j*dly - y_length/2.)**2.) .lt. radius**2.) then
@@ -495,8 +500,9 @@ subroutine initl(uuu,vvv,eee,pressure,tmp,rho,rou,rov,roe,scp,nx,ny,&
       end if
     enddo
   enddo
+  !$acc end parallel loop
 !######################################################################
-
+  !$acc parallel loop collapse(2)
   do j=1,ny
      do i=1,nx
         uuu(i,j) = uu0
@@ -514,6 +520,8 @@ subroutine initl(uuu,vvv,eee,pressure,tmp,rho,rou,rov,roe,scp,nx,ny,&
         scp(i,j) = 1.d0
      enddo
   enddo
+  !$acc end parallel loop
+  !$acc end data
 
   return
 end subroutine initl
