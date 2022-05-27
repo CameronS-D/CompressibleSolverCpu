@@ -2,6 +2,7 @@ import subprocess
 import os
 from timeit import timeit
 import openpyxl
+from datetime import datetime
 
 def setup_worksheet(filename):
     if os.path.exists(filename):
@@ -30,7 +31,7 @@ def save_to_worksheet(worksheet, col, result, row=None):
 
 def change_nx_value(filename, old_vals, new_val):
     if filename.endswith(".cu"):
-        two_before_nx_line = 12
+        two_before_nx_line = 14
     else:
         two_before_nx_line = 9
 
@@ -122,27 +123,33 @@ excel_file = os.path.join("execution_timings.xlsx")
 workbook, timings_sheet = setup_worksheet(excel_file)
 
 compiler_cmds = [
-    ["gfortran -O3 -march=native", "gfortran"],
-    ["gfortran -O3 -march=native -fopenacc -foffload=nvptx-none", "gfortran gpu"],
-    ["ifort -O3 -xhost", "ifort"],
-    ["ifort -O3 -xhost -qopenmp", "ifort parallel"],
-    ["nvfortran -fast -O3", "nvidia"],
-    ["nvfortran -fast -O3 -stdpar=multicore", "nvidia parallel"],
-    ["nvfortran -fast -O3 -stdpar=gpu -gpu=cc70", "nvidia gpu"],
-    ["nvcc -arch=sm_70 -Xptxas -O3", "CUDA"]
+    ["gfortran -O3 -march=native -mtune=native", "gfortran march + mtune"],
+    ["gfortran -O3 -march=native -mtune=native -fopenmp", "gfortran fopenmp"],
+    ["gfortran -O3 -march=native -mtune=native -fopenacc -foffload=nvptx-none", "gfortran fopenacc"],
+    ["ifort -O3 -xhost", "ifort xHost"],
+    ["ifort -O3 -xhost -qopenmp", "ifort qopenmp"],
+    ["nvfortran -fast -O3", "nvidia serial"],
+    ["nvfortran -fast -O3 -stdpar=multicore", "nvidia multicore"],
+    ["nvfortran -fast -O3 -acc=gpu -gpu=cc61,cuda11.6", "nvidia gpu"],
+    # ["nvcc -arch=sm_61 -Xptxas -O3", "CUDA"],
+    # ["nvfortran -fast -O3 -acc=gpu -gpu=cc61,cuda11.6", "openacc"]
 ]
+# PC Settings: -arch=sm_61; -gpu=cc61,cuda11.6
+# Remote Settings: -arch=sm_70; -gpu=cc70,cuda11.6
 
-mesh_nx_options = [129, 257, 513, 1025, 2049]
+mesh_nx_options = [129, 257, 513, 1025, 2049, 4097]
 reps = 3
 
-next_excel_col = timings_sheet.min_column
-if timings_sheet.min_column != timings_sheet.max_column:
-    next_row = timings_sheet.max_row+1
-    for col in range(next_excel_col, next_excel_col + len(compiler_cmds) + 1):
-        save_to_worksheet(timings_sheet, col, "-", row=next_row)
+# Add current date/time and seperators to excel sheet
+time_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+min_col = timings_sheet.min_column
+next_row = timings_sheet.max_row+1
+save_to_worksheet(timings_sheet, min_col, time_str, row=next_row)
+for col in range(min_col + 1, min_col + len(compiler_cmds) + 2):
+    save_to_worksheet(timings_sheet, col, "-", row=next_row)
 
 for val in ["nx"] + mesh_nx_options:
-    save_to_worksheet(timings_sheet, next_excel_col, val)
+    save_to_worksheet(timings_sheet, min_col, val)
 
 if original_f90_file:
     correct_outputs = {}
@@ -155,6 +162,7 @@ if original_f90_file:
     change_nx_value(original_f90_file, mesh_nx_options, mesh_nx_options[0])
     print("Finshed getting correct outputs")
 
+next_excel_col = timings_sheet.min_column
 for cmd, option_name in compiler_cmds:
     if cmd.startswith("nvcc"):
         if not cuda_file:
