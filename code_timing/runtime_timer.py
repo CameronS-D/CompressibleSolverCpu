@@ -102,12 +102,14 @@ def get_correct_output(filename):
 if os.path.isdir("code_timing"):
     os.chdir("code_timing")
 
-f90_file = os.path.join("..", "2D_compressible.f90")
+# f90_file = os.path.join("..", "2D_compressible.f90")
+f90_file = os.path.join("dc_test", "2D_test.f90")
 if not os.path.exists(f90_file):
     print(f"Error: Fortran file not found: {f90_file}")
     quit(1)
 
-original_f90_file = "original_2D_compressible.f90"
+# original_f90_file = "original_2D_compressible.f90"
+original_f90_file = None
 if not original_f90_file or not os.path.exists(original_f90_file):
     print("Warning: Original code not found")
     original_f90_file = None
@@ -122,17 +124,17 @@ excel_file = os.path.join("execution_timings.xlsx")
 workbook, timings_sheet = setup_worksheet(excel_file)
 
 compiler_cmds = [
-    ["gfortran -O3 -march=native", "gfortran"],
-    ["gfortran -O3 -march=native -fopenacc -foffload=nvptx-none", "gfortran gpu"],
-    ["ifort -O3 -xhost", "ifort"],
+    ["gfortran -O3 -march=native", "gfortran serial"],
+    ["gfortran -O3 -march=native -fopenmp -ftree-parallelize-loops=12", "gfortran parallel"],
+    ["ifort -O3 -xhost", "ifort serial"],
     ["ifort -O3 -xhost -qopenmp", "ifort parallel"],
-    ["nvfortran -fast -O3", "nvidia"],
-    ["nvfortran -fast -O3 -stdpar=multicore", "nvidia parallel"],
-    ["nvfortran -fast -O3 -stdpar=gpu -gpu=cc70", "nvidia gpu"],
-    ["nvcc -arch=sm_70 -Xptxas -O3", "CUDA"]
+    ["nvfortran -fast -O3", "nvidia serial"],
+    ["nvfortran -fast -O3 -acc=multicore -stdpar=multicore", "nvidia parallel"],
+    # ["nvfortran -fast -O3 -stdpar=gpu -gpu=cc70", "nvidia gpu"],
+    # ["nvcc -arch=sm_70 -Xptxas -O3", "CUDA"]
 ]
 
-mesh_nx_options = [129, 257, 513, 1025, 2049]
+mesh_nx_options = [129]#, 257, 513, 1025, 2049]
 reps = 3
 
 next_excel_col = timings_sheet.min_column
